@@ -68,7 +68,7 @@ export default function SaltCommand(props) {
     });
 
     const saltCommandQueryUppercase = useQuery({
-        queryKey: ["saltCommand", "uppercase", commandToExecute, hostName.toUpperCase(), siteName],
+        queryKey: ["saltCommand", "uppercase", commandToExecute, `${hostName.toUpperCase()}.buck.local`, siteName],
         queryFn: () => {
             const apiEndpoint = `https://laxcoresrv.buck.local:8000/salt/command_for_host_in_site/${commandToExecute}/${hostName.toUpperCase()}/${siteName}`;
             return fetch(apiEndpoint, {
@@ -82,7 +82,7 @@ export default function SaltCommand(props) {
     });
 
     const saltCommandQueryLowercase = useQuery({
-        queryKey: ["saltCommand", "lowercase", commandToExecute, hostName.toLowerCase(), siteName],
+        queryKey: ["saltCommand", "lowercase", commandToExecute, `${hostName.toLowerCase()}.buck.local`, siteName],
         queryFn: () => {
             const apiEndpoint = `https://laxcoresrv.buck.local:8000/salt/command_for_host_in_site/${commandToExecute}/${hostName.toLowerCase()}/${siteName}`;
             return fetch(apiEndpoint, {
@@ -94,6 +94,65 @@ export default function SaltCommand(props) {
         },
         enabled: executeCommand
     });
+
+    const hasResults = (data) => {
+        if (!data) return false;
+        console.log('hasResults data:', data, 'type:', typeof data);
+        
+        // Check for the specific case of [{}] which represents no results
+        if (Array.isArray(data)) {
+            console.log('Array length:', data.length, 'First item:', data[0]);
+            // Check for empty array
+            if (data.length === 0) return false;
+            
+            // Check for array with single null/undefined item
+            if (data.length === 1 && (data[0] == null || data[0] === undefined)) {
+                return false;
+            }
+            
+            // Check for array with single empty object [{}]
+            if (data.length === 1 && typeof data[0] === 'object' && data[0] !== null && Object.keys(data[0]).length === 0) {
+                console.log('Found single empty object - no results');
+                return false;
+            }
+            
+            // Check if all items are empty objects
+            return !data.every(item => 
+                typeof item === 'object' && item !== null && Object.keys(item).length === 0
+            );
+        }
+        
+        // Handle object case - check if it's an object containing only empty objects
+        if (typeof data === 'object' && data !== null) {
+            const keys = Object.keys(data);
+            if (keys.length === 0) return false;
+            
+            // Check if all values are empty objects or the single key contains [{}]
+            return !Object.values(data).every(value => {
+                if (Array.isArray(value)) {
+                    return value.length === 1 && typeof value[0] === 'object' && value[0] !== null && Object.keys(value[0]).length === 0;
+                }
+                return typeof value === 'object' && value !== null && Object.keys(value).length === 0;
+            });
+        }
+        
+        return String(data).trim().length > 0;
+    };
+
+    const getButtonColor = () => {
+        if (!executeCommand) return 'primary';
+        
+        const hasUppercaseResults = saltCommandQueryUppercase.data && hasResults(saltCommandQueryUppercase.data);
+        const hasLowercaseResults = saltCommandQueryLowercase.data && hasResults(saltCommandQueryLowercase.data);
+        
+        if (hasUppercaseResults || hasLowercaseResults) {
+            return 'success';
+        } else if (saltCommandQueryUppercase.data || saltCommandQueryLowercase.data) {
+            return 'error';
+        }
+        
+        return 'primary';
+    };
 
     const renderCommandResult = (data) => {
         if (typeof data === 'object' && data !== null) {
@@ -141,40 +200,6 @@ export default function SaltCommand(props) {
                             label="Select Command"
                             onChange={handleCommandSelect}
                             variant="outlined"
-                            MenuProps={{
-                                PaperProps: {
-                                    sx: {
-                                        backgroundColor: '#ffffff !important',
-                                        '& .MuiMenuItem-root': {
-                                            backgroundColor: '#ffffff !important',
-                                            '&:hover': {
-                                                backgroundColor: '#f5f5f5 !important'
-                                            },
-                                            '&.Mui-selected': {
-                                                backgroundColor: '#f0f0f0 !important'
-                                            }
-                                        }
-                                    }
-                                }
-                            }}
-                            sx={{ 
-                                backgroundColor: '#ffffff !important',
-                                '& .MuiSelect-select': {
-                                    backgroundColor: '#ffffff !important'
-                                },
-                                '& .MuiOutlinedInput-root': {
-                                    backgroundColor: '#ffffff !important'
-                                },
-                                '& .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                },
-                                '&:hover .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                }
-                            }}
                         >
                             {commonCommands.map((command) => (
                                 <MenuItem key={command} value={command}>
@@ -207,40 +232,6 @@ export default function SaltCommand(props) {
                             onChange={handleHostSelect}
                             variant="outlined"
                             disabled={ldapMachineInfoQuery.isLoading}
-                            MenuProps={{
-                                PaperProps: {
-                                    sx: {
-                                        backgroundColor: '#ffffff !important',
-                                        '& .MuiMenuItem-root': {
-                                            backgroundColor: '#ffffff !important',
-                                            '&:hover': {
-                                                backgroundColor: '#f5f5f5 !important'
-                                            },
-                                            '&.Mui-selected': {
-                                                backgroundColor: '#f0f0f0 !important'
-                                            }
-                                        }
-                                    }
-                                }
-                            }}
-                            sx={{ 
-                                backgroundColor: '#ffffff !important',
-                                '& .MuiSelect-select': {
-                                    backgroundColor: '#ffffff !important'
-                                },
-                                '& .MuiOutlinedInput-root': {
-                                    backgroundColor: '#ffffff !important'
-                                },
-                                '& .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                },
-                                '&:hover .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                }
-                            }}
                         >
                             {ldapMachineInfoQuery.data && ldapMachineInfoQuery.data
                                 .filter(machine => machine.name) // Filter out machines without names
@@ -262,40 +253,6 @@ export default function SaltCommand(props) {
                             label="Site"
                             onChange={handleSiteSelect}
                             variant="outlined"
-                            MenuProps={{
-                                PaperProps: {
-                                    sx: {
-                                        backgroundColor: '#ffffff !important',
-                                        '& .MuiMenuItem-root': {
-                                            backgroundColor: '#ffffff !important',
-                                            '&:hover': {
-                                                backgroundColor: '#f5f5f5 !important'
-                                            },
-                                            '&.Mui-selected': {
-                                                backgroundColor: '#f0f0f0 !important'
-                                            }
-                                        }
-                                    }
-                                }
-                            }}
-                            sx={{ 
-                                backgroundColor: '#ffffff !important',
-                                '& .MuiSelect-select': {
-                                    backgroundColor: '#ffffff !important'
-                                },
-                                '& .MuiOutlinedInput-root': {
-                                    backgroundColor: '#ffffff !important'
-                                },
-                                '& .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                },
-                                '&:hover .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                },
-                                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
-                                }
-                            }}
                         >
                             {siteOptions.map((site) => (
                                 <MenuItem key={site} value={site}>
@@ -307,6 +264,7 @@ export default function SaltCommand(props) {
                     
                     <Button
                         variant="contained"
+                        color={getButtonColor()}
                         onClick={handleExecuteCommand}
                         disabled={(saltCommandQueryUppercase.isLoading || saltCommandQueryLowercase.isLoading) || !commandToExecute.trim() || !hostName.trim() || !siteName.trim()}
                         sx={{ mt: 1 }}
@@ -325,9 +283,18 @@ export default function SaltCommand(props) {
                 {/* Uppercase Host Results */}
                 {saltCommandQueryUppercase.data && !saltCommandQueryUppercase.isLoading && (
                     <Box sx={{ mt: 3 }}>
-                        <Typography variant="h5" sx={{ mb: 2 }}>
-                            Command Results for {hostName.toUpperCase()} in {siteName}
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                            <Typography variant="h5">
+                                Command Results for {hostName.toUpperCase()} in {siteName}
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                color={hasResults(saltCommandQueryUppercase.data) ? 'success' : 'error'}
+                                size="small"
+                            >
+                                Return
+                            </Button>
+                        </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Command: {commandToExecute} (Host: UPPERCASE)
                         </Typography>
@@ -344,9 +311,18 @@ export default function SaltCommand(props) {
                 {/* Lowercase Host Results */}
                 {saltCommandQueryLowercase.data && !saltCommandQueryLowercase.isLoading && (
                     <Box sx={{ mt: 3 }}>
-                        <Typography variant="h5" sx={{ mb: 2 }}>
-                            Command Results for {hostName.toLowerCase()} in {siteName}
-                        </Typography>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                            <Typography variant="h5">
+                                Command Results for {hostName.toLowerCase()} in {siteName}
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                color={hasResults(saltCommandQueryLowercase.data) ? 'success' : 'error'}
+                                size="small"
+                            >
+                                Return
+                            </Button>
+                        </Box>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Command: {commandToExecute} (Host: lowercase)
                         </Typography>

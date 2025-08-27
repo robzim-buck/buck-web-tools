@@ -179,12 +179,32 @@ export default function ParsecUsers({ name = "Parsec" }) {
     setLoading(true);
     setSelectedUserEmail(email);
     try {
-      const response = await fetch(`https://laxcoresrv.buck.local:8000/parsec_machines_for_user/${email}`);
+      // Fetch all Parsec machines from the parsecreport endpoint
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/parsecreport`);
       if (!response.ok) {
         throw new Error(`API responded with status ${response.status}`);
       }
-      const data = await response.json();
-      setUserMachines(data);
+      const allMachines = await response.json();
+      
+      // Find the user in parsecUsers data to get their name
+      const parsecUser = parsecUsers.data?.find(user => user.email === email);
+      
+      // Filter machines that belong to this user
+      // Match by email or by name (since Parsec machines store user name, not email)
+      const userMachines = allMachines.filter(machine => {
+        // Check if machine.email matches (if it exists)
+        if (machine.email && machine.email.toLowerCase() === email.toLowerCase()) {
+          return true;
+        }
+        // Check if machine.name matches the parsec user's name
+        if (parsecUser && machine.name && 
+            machine.name.toLowerCase() === parsecUser.name.toLowerCase()) {
+          return true;
+        }
+        return false;
+      });
+      
+      setUserMachines(userMachines);
       setDialogOpen(true);
     } catch (error) {
       console.error("Error fetching user machines:", error);
@@ -339,15 +359,23 @@ export default function ParsecUsers({ name = "Parsec" }) {
           ))}
         </Grid>
 
-        <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-          <DialogTitle>
+        <Dialog 
+          open={dialogOpen} 
+          onClose={handleCloseDialog} 
+          maxWidth="md" 
+          fullWidth
+          PaperProps={{
+            sx: { bgcolor: 'white' }
+          }}
+        >
+          <DialogTitle sx={{ bgcolor: 'white' }}>
             Machines for {selectedUserEmail}
           </DialogTitle>
-          <DialogContent dividers>
+          <DialogContent dividers sx={{ bgcolor: 'white' }}>
             {userMachines.length > 0 ? (
               <Box>
                 {userMachines.map((machine, index) => (
-                  <Paper key={index} variant="outlined" sx={{ p: 2, mb: 2 }}>
+                  <Paper key={index} variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'background.paper' }}>
                     <Typography variant="h6">{machine.name || 'Unnamed User'}</Typography>
                     <Grid container spacing={2}>
                       <Grid item xs={6}>
@@ -381,7 +409,7 @@ export default function ParsecUsers({ name = "Parsec" }) {
               <Typography variant="body1">No machines found for this user</Typography>
             )}
           </DialogContent>
-          <DialogActions>
+          <DialogActions sx={{ bgcolor: 'white' }}>
             <Button onClick={handleCloseDialog} color="primary">
               Close
             </Button>

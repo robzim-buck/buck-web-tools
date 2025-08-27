@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { 
   Typography, Box, Container, Grid, 
   Card, CardContent, Chip, Divider,
   Paper, TextField, InputAdornment,
   Avatar, Tooltip, IconButton,
   Collapse, Button, CircularProgress, Alert, AlertTitle,
-  Stack, Badge
+  Stack, Dialog, DialogTitle, DialogContent,
+  List, ListItem, ListItemText, ListItemAvatar
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -17,7 +18,9 @@ import {
   ContentCopy as ContentCopyIcon,
   CalendarMonth as CalendarIcon,
   Person as PersonIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  People as PeopleIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 
 export default function OktaGroups(props) {
@@ -338,7 +341,7 @@ export default function OktaGroups(props) {
             <Grid container spacing={2}>
               {/* Render by categories if not searching */}
               {!searchTerm && uniqueCategories.map(category => (
-                <Grid item xs={12} key={category}>
+                <Grid size={12} key={category}>
                   <Typography 
                     variant="h6" 
                     color="primary"
@@ -375,7 +378,7 @@ export default function OktaGroups(props) {
               
               {/* Flat list when searching */}
               {searchTerm && filteredGroups.map((group) => (
-                <Grid item xs={12} key={group.id}>
+                <Grid size={12} key={group.id}>
                   <GroupCard 
                     group={group} 
                     isExpanded={expandedGroups[group.id] || false}
@@ -420,9 +423,76 @@ export default function OktaGroups(props) {
 
 // Separated GroupCard component for better organization
 function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copiedText, formatDate }) {
+  const [showUsersDialog, setShowUsersDialog] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
+
+  // Fetch member count for this group only when expanded
+  const { data: memberCount } = useQuery({
+    queryKey: ['groupMemberCount', group.id],
+    queryFn: async () => {
+      try {
+        const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/get_group_members?groupid=${group.id}`, {
+          headers: {
+            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+          }
+        });
+        
+        if (!response.ok) {
+          return 0;
+        }
+        
+        const members = await response.json();
+        return Array.isArray(members) ? members.length : 0;
+      } catch (error) {
+        console.error(`Error fetching member count for group ${group.id}:`, error);
+        return 0;
+      }
+    },
+    enabled: isExpanded, // Only fetch when card is expanded
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: 1
+  });
+
+  // Fetch group members when dialog is opened
+  const { data: groupMembers, isLoading: membersLoading, error: membersError } = useQuery({
+    queryKey: ['groupMembers', selectedGroupId],
+    queryFn: async () => {
+      if (!selectedGroupId) return [];
+      
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/get_group_members?groupid=${selectedGroupId}`, {
+        headers: {
+          'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch group members: ${response.status}`);
+      }
+      
+      return response.json();
+    },
+    enabled: !!selectedGroupId && showUsersDialog,
+    retry: 2,
+    retryDelay: 1000
+  });
+
+  const handleShowUsers = (groupId, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    setSelectedGroupId(groupId);
+    setShowUsersDialog(true);
+  };
+
+  const handleCloseUsersDialog = () => {
+    setShowUsersDialog(false);
+    setSelectedGroupId(null);
+  };
+
   return (
-    <Card variant="outlined" sx={{ mb: 1 }}>
-      <CardContent sx={{ p: 2 }}>
+    <>
+      <Card variant="outlined" sx={{ mb: 1 }}>
+        <CardContent sx={{ p: 2 }}>
         {/* Group summary - always visible */}
         <Box 
           sx={{ 
@@ -434,17 +504,12 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
           onClick={(e) => toggleGroupExpand(group.id, e)}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Badge 
-              color={group._app_count > 0 ? "success" : "default"}
-              variant="dot"
-            >
-              <Avatar sx={{ 
-                bgcolor: isExpanded ? 'primary.main' : 'primary.light',
-                transition: 'background-color 0.3s ease'
-              }}>
-                <GroupIcon />
-              </Avatar>
-            </Badge>
+            <Avatar sx={{ 
+              bgcolor: isExpanded ? 'primary.main' : 'primary.light',
+              transition: 'background-color 0.3s ease'
+            }}>
+              <GroupIcon />
+            </Avatar>
             <Box>
               <Typography variant="subtitle1">
                 {group.profile?.name || 'Unnamed Group'}
@@ -456,16 +521,6 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
           </Box>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {group._member_count > 0 && (
-              <Tooltip title={`${group._member_count} members`}>
-                <Chip 
-                  size="small"
-                  variant="outlined"
-                  icon={<PersonIcon fontSize="small" />}
-                  label={group._member_count || 0}
-                />
-              </Tooltip>
-            )}
             <Tooltip title={`Created: ${formatDate(group.created)}`}>
               <Chip 
                 size="small"
@@ -487,7 +542,7 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
         <Collapse in={isExpanded}>
           <Divider sx={{ my: 2 }} />
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" color="primary" gutterBottom>
                   Basic Information
@@ -543,7 +598,7 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
               </Paper>
             </Grid>
             
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" color="primary" gutterBottom>
                   Timestamps
@@ -576,42 +631,126 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
                 </Box>
                 
                 {/* Additional metadata if available */}
-                {(group._app_count > 0 || group._member_count > 0) && (
+                {group._app_count > 0 && (
                   <>
                     <Divider sx={{ my: 2 }} />
                     <Typography variant="subtitle2" color="primary" gutterBottom>
                       Statistics
                     </Typography>
                     
-                    {group._member_count > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2" fontWeight="medium">Members</Typography>
-                        <Chip 
-                          size="small" 
-                          color="primary"
-                          icon={<PersonIcon fontSize="small" />}
-                          label={group._member_count || 0}
-                        />
-                      </Box>
-                    )}
-                    
-                    {group._app_count > 0 && (
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2" fontWeight="medium">Connected Apps</Typography>
-                        <Chip 
-                          size="small" 
-                          color="success"
-                          label={group._app_count || 0}
-                        />
-                      </Box>
-                    )}
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="body2" fontWeight="medium">Connected Apps</Typography>
+                      <Chip 
+                        size="small" 
+                        color="success"
+                        label={group._app_count || 0}
+                      />
+                    </Box>
                   </>
                 )}
               </Paper>
             </Grid>
           </Grid>
+          
+          {/* Show Users Button */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<PeopleIcon />}
+              onClick={(e) => handleShowUsers(group.id, e)}
+            >
+              Show Users {memberCount !== undefined ? `(${memberCount})` : ''}
+            </Button>
+          </Box>
         </Collapse>
       </CardContent>
     </Card>
+
+    {/* Users Dialog */}
+    <Dialog 
+      open={showUsersDialog} 
+      onClose={handleCloseUsersDialog}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          bgcolor: 'background.paper',
+          backgroundImage: 'none'
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        bgcolor: 'white'
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PeopleIcon color="primary" />
+          <Typography variant="h6">
+            {group.profile?.name} - Members
+          </Typography>
+        </Box>
+        <IconButton onClick={handleCloseUsersDialog} size="small">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers sx={{ bgcolor: 'white' }}>
+        {membersLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : membersError ? (
+          <Alert severity="error">
+            <AlertTitle>Error Loading Members</AlertTitle>
+            {membersError.message}
+          </Alert>
+        ) : groupMembers && groupMembers.length > 0 ? (
+          <List>
+            {groupMembers.map((member) => (
+              <ListItem key={member.id || member.login}>
+                <ListItemAvatar>
+                  <Avatar sx={{ bgcolor: 'primary.light' }}>
+                    <PersonIcon />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {member.profile?.displayName || member.profile?.firstName + ' ' + member.profile?.lastName || 'Unknown User'}
+                      {member.status && (
+                        <Chip 
+                          size="small" 
+                          label={member.status} 
+                          color={member.status === 'ACTIVE' ? 'success' : 'default'}
+                          variant="outlined"
+                        />
+                      )}
+                    </Box>
+                  }
+                  secondary={
+                    <Box>
+                      <Typography variant="body2" color="text.secondary">
+                        {member.profile?.email || 'No email'}
+                      </Typography>
+                      {member.profile?.login && member.profile?.login !== member.profile?.email && (
+                        <Typography variant="caption" color="text.secondary">
+                          Login: {member.profile?.login}
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                />
+              </ListItem>
+            ))}
+          </List>
+        ) : (
+          <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+            No members found in this group
+          </Typography>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

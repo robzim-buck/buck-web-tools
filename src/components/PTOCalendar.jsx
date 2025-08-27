@@ -21,17 +21,592 @@ import {
     FormControl,
     InputLabel,
     Select,
-    MenuItem
+    MenuItem,
+    IconButton,
+    Tooltip,
+    Popover,
+    List,
+    ListItem,
+    ListItemText,
+    Divider
 } from '@mui/material';
 import CircularProgress from '@mui/material/CircularProgress';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import CalendarViewMonthIcon from '@mui/icons-material/CalendarViewMonth';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import TimelineIcon from '@mui/icons-material/Timeline';
 import { useProtectedApiGet } from '../hooks/useApi';
 
+// Calendar View Component
+const CalendarView = ({ entries, getEmployeeName, getDepartment, getLocation, getStartDate, getEndDate, queryStartDate, queryEndDate }) => {
+    const [currentMonth, setCurrentMonth] = useState(new Date(queryStartDate));
+    const [anchorEl, setAnchorEl] = useState(null);
+    const [hoveredDate, setHoveredDate] = useState(null);
+    const [hoveredEntries, setHoveredEntries] = useState([]);
+
+    // Get days in the current month
+    const getDaysInMonth = (date) => {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const days = [];
+        
+        // Add empty cells for days before the first day of the month
+        const firstDayOfWeek = firstDay.getDay();
+        for (let i = 0; i < firstDayOfWeek; i++) {
+            days.push(null);
+        }
+        
+        // Add all days of the month
+        for (let i = 1; i <= lastDay.getDate(); i++) {
+            days.push(new Date(year, month, i));
+        }
+        
+        return days;
+    };
+
+    // Get PTO entries for a specific day
+    const getEntriesForDay = (date) => {
+        if (!date) return [];
+        
+        return entries.filter(entry => {
+            const startDateStr = getStartDate(entry);
+            const endDateStr = getEndDate(entry);
+            
+            if (!startDateStr || !endDateStr) return false;
+            
+            const startDate = new Date(startDateStr);
+            const endDate = new Date(endDateStr);
+            const checkDate = new Date(date);
+            
+            // Reset time components for accurate date comparison
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(0, 0, 0, 0);
+            checkDate.setHours(0, 0, 0, 0);
+            
+            return checkDate >= startDate && checkDate <= endDate;
+        });
+    };
+
+    const handlePreviousMonth = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+    };
+
+    const handleNextMonth = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+    };
+
+    const handleToday = () => {
+        setCurrentMonth(new Date());
+    };
+
+    const days = getDaysInMonth(currentMonth);
+    const monthName = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    const handleDateHover = (event, date, entries) => {
+        if (entries.length > 0) {
+            setAnchorEl(event.currentTarget);
+            setHoveredDate(date);
+            setHoveredEntries(entries);
+        }
+    };
+
+    const handlePopoverClose = () => {
+        setAnchorEl(null);
+        setHoveredDate(null);
+        setHoveredEntries([]);
+    };
+
+    const handlePopoverEnter = () => {
+        // Keep the popover open when hovering over it
+    };
+
+    const handlePopoverLeave = () => {
+        handlePopoverClose();
+    };
+
+    const open = Boolean(anchorEl);
+
+    return (
+        <Box>
+            <Card variant="outlined" sx={{ mb: 3 }}>
+                <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <IconButton onClick={handlePreviousMonth}>
+                            <ArrowBackIcon />
+                        </IconButton>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Typography variant="h5">{monthName}</Typography>
+                            <Button size="small" variant="outlined" onClick={handleToday}>
+                                Today
+                            </Button>
+                        </Box>
+                        <IconButton onClick={handleNextMonth}>
+                            <ArrowForwardIcon />
+                        </IconButton>
+                    </Box>
+                </CardContent>
+            </Card>
+
+            <Paper elevation={1}>
+                <Grid container>
+                    {/* Day headers */}
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                        <Grid item key={day} size={1.714} sx={{ 
+                            p: 2, 
+                            bgcolor: 'primary.main', 
+                            color: 'white',
+                            textAlign: 'center',
+                            fontWeight: 'bold'
+                        }}>
+                            {day}
+                        </Grid>
+                    ))}
+                    
+                    {/* Calendar days */}
+                    {days.map((day, index) => {
+                        const dayEntries = day ? getEntriesForDay(day) : [];
+                        const isToday = day && day.toDateString() === new Date().toDateString();
+                        
+                        return (
+                            <Grid 
+                                item 
+                                key={index} 
+                                size={1.714} 
+                                sx={{ 
+                                    minHeight: 120,
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    p: 1,
+                                    bgcolor: isToday ? 'action.hover' : 'background.paper',
+                                    cursor: dayEntries.length > 0 ? 'pointer' : 'default',
+                                    '&:hover': dayEntries.length > 0 ? {
+                                        bgcolor: 'action.selected'
+                                    } : {}
+                                }}
+                                onMouseEnter={(e) => day && handleDateHover(e, day, dayEntries)}
+                                onMouseLeave={() => {
+                                    // Small delay to allow moving to popover
+                                    setTimeout(() => {
+                                        if (!document.querySelector('[data-popover-hover="true"]')) {
+                                            handlePopoverClose();
+                                        }
+                                    }, 100);
+                                }}
+                            >
+                                {day && (
+                                    <Box>
+                                        <Typography variant="body2" sx={{ fontWeight: isToday ? 'bold' : 'normal' }}>
+                                            {day.getDate()}
+                                        </Typography>
+                                        <Box sx={{ mt: 1 }}>
+                                            {dayEntries.slice(0, 3).map((entry, entryIndex) => (
+                                                <Chip
+                                                    key={entryIndex}
+                                                    label={getEmployeeName(entry)?.split(' ')[0] || 'PTO'}
+                                                    size="small"
+                                                    color="primary"
+                                                    sx={{ 
+                                                        mb: 0.5, 
+                                                        width: '100%',
+                                                        fontSize: '0.7rem',
+                                                        height: '20px'
+                                                    }}
+                                                />
+                                            ))}
+                                            {dayEntries.length > 3 && (
+                                                <Typography variant="caption" color="text.secondary">
+                                                    +{dayEntries.length - 3} more
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    </Box>
+                                )}
+                            </Grid>
+                        );
+                    })}
+                </Grid>
+            </Paper>
+
+            {/* Summary below calendar */}
+            <Card variant="outlined" sx={{ mt: 3 }}>
+                <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                        PTO Summary for {monthName}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Total employees on PTO this month: {
+                            [...new Set(entries.map(entry => getEmployeeName(entry)))].length
+                        }
+                    </Typography>
+                </CardContent>
+            </Card>
+
+            {/* Popover for showing all entries on hover */}
+            <Popover
+                open={open}
+                anchorEl={anchorEl}
+                onClose={handlePopoverClose}
+                anchorOrigin={{
+                    vertical: 'bottom',
+                    horizontal: 'left',
+                }}
+                transformOrigin={{
+                    vertical: 'top',
+                    horizontal: 'left',
+                }}
+                disableRestoreFocus
+                slotProps={{
+                    paper: {
+                        sx: {
+                            backgroundColor: '#ffffff',
+                            boxShadow: 3,
+                            pointerEvents: 'auto'
+                        },
+                        'data-popover-hover': 'true',
+                        onMouseEnter: handlePopoverEnter,
+                        onMouseLeave: handlePopoverLeave
+                    }
+                }}
+            >
+                <Box sx={{ p: 2, minWidth: 300, maxWidth: 400, bgcolor: '#ffffff' }}>
+                    <Typography variant="h6" gutterBottom>
+                        {hoveredDate && hoveredDate.toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            month: 'long', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                        })}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                        {hoveredEntries.length} employee{hoveredEntries.length !== 1 ? 's' : ''} on PTO
+                    </Typography>
+                    <Divider sx={{ my: 1 }} />
+                    <List dense>
+                        {hoveredEntries.map((entry, index) => (
+                            <ListItem key={index} disableGutters>
+                                <ListItemText
+                                    primary={getEmployeeName(entry) || 'Unknown Employee'}
+                                    secondary={
+                                        <Box>
+                                            <Typography variant="caption" display="block">
+                                                {getDepartment(entry)} • {getLocation(entry)}
+                                            </Typography>
+                                            <Typography variant="caption" display="block" color="text.secondary">
+                                                {getStartDate(entry) === getEndDate(entry) 
+                                                    ? 'Single day'
+                                                    : `${new Date(getStartDate(entry)).toLocaleDateString()} - ${new Date(getEndDate(entry)).toLocaleDateString()}`
+                                                }
+                                            </Typography>
+                                        </Box>
+                                    }
+                                />
+                            </ListItem>
+                        ))}
+                    </List>
+                </Box>
+            </Popover>
+        </Box>
+    );
+};
+
+// Timeline View Component
+const TimelineView = ({ entries, getEmployeeName, getDepartment, getLocation, getStartDate, getEndDate }) => {
+    const [selectedDepartment, setSelectedDepartment] = useState('');
+    
+    // Group entries by department
+    const entriesByDepartment = useMemo(() => {
+        const grouped = {};
+        entries.forEach(entry => {
+            const dept = getDepartment(entry) || 'No Department';
+            if (!grouped[dept]) {
+                grouped[dept] = [];
+            }
+            grouped[dept].push(entry);
+        });
+        return grouped;
+    }, [entries]);
+    
+    const departments = Object.keys(entriesByDepartment).sort();
+    const filteredDepartments = selectedDepartment ? [selectedDepartment] : departments;
+    
+    // Calculate timeline range
+    const timelineRange = useMemo(() => {
+        let minDate = new Date();
+        let maxDate = new Date();
+        
+        entries.forEach(entry => {
+            const startDate = getStartDate(entry);
+            const endDate = getEndDate(entry);
+            
+            if (startDate) {
+                const start = new Date(startDate);
+                if (start < minDate) minDate = start;
+                if (start > maxDate) maxDate = start;
+            }
+            
+            if (endDate) {
+                const end = new Date(endDate);
+                if (end > maxDate) maxDate = end;
+            }
+        });
+        
+        // Add padding of 1 week on each side
+        minDate.setDate(minDate.getDate() - 7);
+        maxDate.setDate(maxDate.getDate() + 7);
+        
+        return { minDate, maxDate };
+    }, [entries]);
+    
+    const totalDays = Math.ceil((timelineRange.maxDate - timelineRange.minDate) / (1000 * 60 * 60 * 24));
+    
+    const getPositionPercentage = (date) => {
+        const dateObj = new Date(date);
+        const daysDiff = Math.ceil((dateObj - timelineRange.minDate) / (1000 * 60 * 60 * 24));
+        return (daysDiff / totalDays) * 100;
+    };
+    
+    const getWidthPercentage = (startDate, endDate) => {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        
+        // Check if dates are valid
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+            return 0;
+        }
+        
+        // Reset time to midnight for accurate day counting
+        start.setHours(0, 0, 0, 0);
+        end.setHours(0, 0, 0, 0);
+        
+        // Calculate difference in milliseconds
+        const diffTime = end.getTime() - start.getTime();
+        
+        // Convert to days - simple difference
+        const duration = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 for timeline width to show inclusive days visually
+        
+        return (duration / totalDays) * 100;
+    };
+    
+    return (
+        <Box>
+            <Card variant="outlined" sx={{ mb: 3 }}>
+                <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h6">
+                            Timeline View
+                        </Typography>
+                        <FormControl size="small" sx={{ minWidth: 200 }}>
+                            <InputLabel id="timeline-dept-filter">Filter by Department</InputLabel>
+                            <Select
+                                labelId="timeline-dept-filter"
+                                value={selectedDepartment}
+                                label="Filter by Department"
+                                onChange={(e) => setSelectedDepartment(e.target.value)}
+                            >
+                                <MenuItem value="">
+                                    <em>All Departments</em>
+                                </MenuItem>
+                                {departments.map((dept) => (
+                                    <MenuItem key={dept} value={dept}>
+                                        {dept}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Box>
+                </CardContent>
+            </Card>
+            
+            <Paper elevation={1} sx={{ p: 3, overflowX: 'auto' }}>
+                <Box sx={{ minWidth: 1000 }}>
+                    {/* Timeline header with dates */}
+                    <Box sx={{ mb: 3, pb: 2, borderBottom: '2px solid', borderColor: 'divider' }}>
+                        <Box sx={{ display: 'flex', position: 'relative', height: 40 }}>
+                            {/* Generate month markers */}
+                            {(() => {
+                                const months = [];
+                                const current = new Date(timelineRange.minDate);
+                                current.setDate(1);
+                                
+                                while (current <= timelineRange.maxDate) {
+                                    const monthStart = new Date(current);
+                                    const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+                                    
+                                    if (monthStart >= timelineRange.minDate || monthEnd <= timelineRange.maxDate) {
+                                        const left = getPositionPercentage(monthStart);
+                                        const width = getWidthPercentage(monthStart, monthEnd);
+                                        
+                                        months.push(
+                                            <Box
+                                                key={monthStart.toISOString()}
+                                                sx={{
+                                                    position: 'absolute',
+                                                    left: `${left}%`,
+                                                    width: `${width}%`,
+                                                    textAlign: 'center',
+                                                    borderRight: '1px solid',
+                                                    borderColor: 'divider',
+                                                    height: '100%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}
+                                            >
+                                                <Typography variant="body2" fontWeight="bold">
+                                                    {monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                                </Typography>
+                                            </Box>
+                                        );
+                                    }
+                                    
+                                    current.setMonth(current.getMonth() + 1);
+                                }
+                                
+                                return months;
+                            })()}
+                        </Box>
+                    </Box>
+                    
+                    {/* Department rows */}
+                    {filteredDepartments.map((department) => (
+                        <Box key={department} sx={{ mb: 4 }}>
+                            <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>
+                                {department} ({entriesByDepartment[department].length} employees)
+                            </Typography>
+                            
+                            {entriesByDepartment[department].map((entry, index) => {
+                                const startDate = getStartDate(entry);
+                                const endDate = getEndDate(entry);
+                                
+                                if (!startDate || !endDate) return null;
+                                
+                                const left = getPositionPercentage(startDate);
+                                const width = getWidthPercentage(startDate, endDate);
+                                
+                                return (
+                                    <Box key={index} sx={{ position: 'relative', height: 40, mb: 1 }}>
+                                        {/* Employee name on the left */}
+                                        <Box sx={{ 
+                                            position: 'absolute', 
+                                            left: -200, 
+                                            width: 190, 
+                                            pr: 2,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'flex-end',
+                                            height: '100%'
+                                        }}>
+                                            <Typography variant="body2" noWrap>
+                                                {getEmployeeName(entry)}
+                                            </Typography>
+                                        </Box>
+                                        
+                                        {/* Timeline bar */}
+                                        <Box sx={{ 
+                                            position: 'relative', 
+                                            height: '100%',
+                                            backgroundColor: 'grey.100',
+                                            borderRadius: 1
+                                        }}>
+                                            <Tooltip 
+                                                title={`${getEmployeeName(entry)} - ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}`}
+                                                arrow
+                                            >
+                                                <Box sx={{
+                                                    position: 'absolute',
+                                                    left: `${left}%`,
+                                                    width: `${width}%`,
+                                                    height: 30,
+                                                    backgroundColor: 'primary.main',
+                                                    borderRadius: 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    cursor: 'pointer',
+                                                    top: '50%',
+                                                    transform: 'translateY(-50%)',
+                                                    '&:hover': {
+                                                        backgroundColor: 'primary.dark',
+                                                        boxShadow: 2
+                                                    }
+                                                }}>
+                                                    <Box sx={{ 
+                                                        display: 'flex', 
+                                                        flexDirection: 'column', 
+                                                        alignItems: 'center',
+                                                        lineHeight: 1.2
+                                                    }}>
+                                                        {(() => {
+                                                            const fullName = getEmployeeName(entry) || '';
+                                                            const nameParts = fullName.trim().split(' ');
+                                                            const firstName = nameParts[0] || '';
+                                                            const lastName = nameParts.slice(1).join(' ') || '';
+                                                            
+                                                            return (
+                                                                <>
+                                                                    <Typography 
+                                                                        variant="caption" 
+                                                                        sx={{ 
+                                                                            color: 'white',
+                                                                            fontSize: '0.7rem',
+                                                                            fontWeight: 'bold',
+                                                                            lineHeight: 1
+                                                                        }}
+                                                                        noWrap
+                                                                    >
+                                                                        {firstName}
+                                                                    </Typography>
+                                                                    {lastName && (
+                                                                        <Typography 
+                                                                            variant="caption" 
+                                                                            sx={{ 
+                                                                                color: 'white',
+                                                                                fontSize: '0.7rem',
+                                                                                fontWeight: 'bold',
+                                                                                lineHeight: 1
+                                                                            }}
+                                                                            noWrap
+                                                                        >
+                                                                            {lastName}
+                                                                        </Typography>
+                                                                    )}
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </Box>
+                                                </Box>
+                                            </Tooltip>
+                                        </Box>
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                    ))}
+                    
+                    {/* Today marker */}
+                    <Box sx={{
+                        position: 'absolute',
+                        left: `${getPositionPercentage(new Date())}%`,
+                        top: 60,
+                        bottom: 0,
+                        width: 2,
+                        backgroundColor: 'error.main',
+                        zIndex: 10
+                    }} />
+                </Box>
+            </Paper>
+        </Box>
+    );
+};
+
 const PTOCalendar = () => {
-    const [cardView, setCardView] = useState(true);
+    const [viewMode, setViewMode] = useState('card'); // 'card', 'table', 'calendar', or 'timeline'
     const [hidePastDates, setHidePastDates] = useState(false);
     const [sortField, setSortField] = useState('Employee Name');
     const [sortDirection, setSortDirection] = useState('asc');
@@ -53,14 +628,19 @@ const PTOCalendar = () => {
     const [queryStartDate, setQueryStartDate] = useState(todayString);
     const [queryEndDate, setQueryEndDate] = useState(endOfMonthString);
 
+    // Build query params conditionally
+    const queryParams = { id: '10048' };
+    if (queryStartDate) {
+        queryParams.start_date = queryStartDate;
+    }
+    if (queryEndDate) {
+        queryParams.end_date = queryEndDate;
+    }
+
     const { data: ptoData, isLoading, error } = useProtectedApiGet(
         '/deltek/deltek_databoard',
         {
-            queryParams: { 
-                id: '10048',
-                start_date: queryStartDate,
-                end_date: queryEndDate
-            },
+            queryParams,
             queryConfig: {
                 staleTime: 300000, // 5 minutes
                 refetchOnWindowFocus: false
@@ -99,21 +679,52 @@ const PTOCalendar = () => {
     };
 
     const getDuration = (entry) => {
-        // Calculate duration from Hours field or start/end dates
-        const hours = getFieldValue(entry, ['Hours', 'hours']);
-        if (hours) {
-            return (hours / 8).toFixed(1); // Convert hours to days (assuming 8-hour workday)
+        // If no hours or hours < 8, try to calculate from dates
+        const startDateStr = getStartDate(entry);
+        const endDateStr = getEndDate(entry);
+        
+        if (startDateStr && endDateStr) {
+            const start = new Date(startDateStr);
+            const end = new Date(endDateStr);
+            
+            // Check if dates are valid
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                console.error('Invalid dates:', startDateStr, endDateStr);
+                return null;
+            }
+            
+            // Reset time to midnight for accurate day counting
+            start.setHours(0, 0, 0, 0);
+            end.setHours(0, 0, 0, 0);
+            
+            // Calculate difference in milliseconds
+            const diffTime = end.getTime() - start.getTime();
+            
+            // Convert to days - simple difference between dates
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            
+            // If start and end dates are the same, it's 1 day
+            const finalDays = diffDays === 0 ? 1 : diffDays;
+            
+            // Debug logging
+            console.log('Duration calc:', {
+                employeeName: getEmployeeName(entry),
+                startDateStr,
+                endDateStr,
+                start: start.toISOString(),
+                end: end.toISOString(),
+                diffTime,
+                diffDays,
+                finalDays
+            });
+            
+            return finalDays;
         }
         
-        // If no hours, try to calculate from dates
-        const startDate = getStartDate(entry);
-        const endDate = getEndDate(entry);
-        if (startDate && endDate) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            const diffTime = Math.abs(end - start);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end days
-            return diffDays;
+        // Fall back to hours if no dates
+        const hours = getFieldValue(entry, ['Hours', 'hours']);
+        if (hours && hours >= 8) {
+            return Math.floor(hours / 8); // Convert hours to full days only if 8+ hours
         }
         
         return null;
@@ -131,11 +742,6 @@ const PTOCalendar = () => {
         ]);
     };
 
-    const getEmployeeId = (entry) => {
-        return getFieldValue(entry, [
-            'Employee ID', 'employeeId', 'employee_id', 'id'
-        ]);
-    };
 
     const getUsername = (entry) => {
         return getFieldValue(entry, [
@@ -302,13 +908,15 @@ const PTOCalendar = () => {
     console.log('PTO Data received:', ptoData);
     console.log('PTO Data type:', typeof ptoData);
     console.log('PTO Data is array:', Array.isArray(ptoData));
+    console.log('Query params:', queryParams);
+    console.log('Query dates:', { queryStartDate, queryEndDate });
     if (ptoData && Array.isArray(ptoData) && ptoData.length > 0) {
         console.log('First PTO entry:', ptoData[0]);
         console.log('Field names:', Object.keys(ptoData[0]));
     }
 
-    const toggleView = () => {
-        setCardView(!cardView);
+    const handleViewChange = (event) => {
+        setViewMode(event.target.value);
     };
 
     const handleRefresh = () => {
@@ -351,21 +959,58 @@ const PTOCalendar = () => {
                         }
                         label="Hide Past Dates"
                     />
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={cardView}
-                                onChange={toggleView}
-                                color="primary"
-                            />
-                        }
-                        label={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                {cardView ? <CalendarTodayIcon /> : <ViewListIcon />}
-                                {cardView ? 'Card View (Click for Table View)' : 'Table View (Click for Card View)'}
-                            </Box>
-                        }
-                    />
+                    <FormControl size="small" sx={{ minWidth: 140 }}>
+                        <InputLabel id="view-mode-label">View</InputLabel>
+                        <Select
+                            labelId="view-mode-label"
+                            value={viewMode}
+                            label="View"
+                            onChange={handleViewChange}
+                            sx={{ 
+                                backgroundColor: '#ffffff',
+                                '& .MuiOutlinedInput-root': {
+                                    backgroundColor: '#ffffff'
+                                },
+                                '& .MuiSelect-select': {
+                                    backgroundColor: '#ffffff'
+                                }
+                            }}
+                            MenuProps={{
+                                PaperProps: {
+                                    sx: {
+                                        backgroundColor: '#ffffff',
+                                        boxShadow: 3,
+                                        border: '1px solid #e0e0e0'
+                                    }
+                                }
+                            }}
+                        >
+                            <MenuItem value="card">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <CalendarTodayIcon fontSize="small" />
+                                    Card View
+                                </Box>
+                            </MenuItem>
+                            <MenuItem value="table">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <ViewListIcon fontSize="small" />
+                                    Table View
+                                </Box>
+                            </MenuItem>
+                            <MenuItem value="calendar">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <CalendarViewMonthIcon fontSize="small" />
+                                    Calendar View
+                                </Box>
+                            </MenuItem>
+                            <MenuItem value="timeline">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <TimelineIcon fontSize="small" />
+                                    Timeline View
+                                </Box>
+                            </MenuItem>
+                        </Select>
+                    </FormControl>
                 </Box>
             </Box>
 
@@ -382,7 +1027,10 @@ const PTOCalendar = () => {
                     )}
                     {(startDate === queryStartDate && endDate === queryEndDate) && (
                         <Typography variant="body2" color="success.main" sx={{ fontStyle: 'italic' }}>
-                            Showing: {queryStartDate} to {queryEndDate}
+                            {queryStartDate && queryEndDate 
+                                ? `Showing: ${queryStartDate} to ${queryEndDate}`
+                                : 'Showing: All PTO records'
+                            }
                         </Typography>
                     )}
                 </Box>
@@ -446,6 +1094,24 @@ const PTOCalendar = () => {
                                 }}
                             >
                                 Next Month
+                            </Button>
+                            <Button 
+                                variant="outlined" 
+                                size="small"
+                                color="secondary"
+                                onClick={() => {
+                                    // Set a wide date range to show all records
+                                    const yearStart = new Date(today.getFullYear(), 0, 1);
+                                    const yearEnd = new Date(today.getFullYear(), 11, 31);
+                                    const yearStartString = yearStart.toISOString().split('T')[0];
+                                    const yearEndString = yearEnd.toISOString().split('T')[0];
+                                    setStartDate(yearStartString);
+                                    setEndDate(yearEndString);
+                                    setQueryStartDate(yearStartString);
+                                    setQueryEndDate(yearEndString);
+                                }}
+                            >
+                                This Year
                             </Button>
                             <Button 
                                 variant="contained" 
@@ -594,7 +1260,7 @@ const PTOCalendar = () => {
                 </Box>
             )}
 
-            {cardView ? (
+            {viewMode === 'card' ? (
                 // Card View
                 <Grid container spacing={3}>
                     {sortedEntries.map((entry, index) => (
@@ -647,21 +1313,40 @@ const PTOCalendar = () => {
 
                                     <Box sx={{ mb: 2 }}>
                                         <Typography variant="body2" color="text.secondary" gutterBottom>
-                                            Duration
+                                            Days
                                         </Typography>
                                         <Typography variant="body1">
-                                            {getDuration(entry) ? `${getDuration(entry)} days` : 'N/A'}
+                                            {(() => {
+                                                const duration = getDuration(entry);
+                                                if (duration) {
+                                                    // If we have hours and it's less than 8, show as decimal
+                                                    const hours = getFieldValue(entry, ['Hours', 'hours']);
+                                                    if (hours && hours < 8) {
+                                                        return (hours / 8).toFixed(1);
+                                                    }
+                                                    return duration;
+                                                }
+                                                return 'N/A';
+                                            })()}
                                         </Typography>
                                     </Box>
 
-                                    <Box sx={{ mb: 2 }}>
-                                        <Typography variant="body2" color="text.secondary" gutterBottom>
-                                            Hours
-                                        </Typography>
-                                        <Typography variant="body1">
-                                            {getFieldValue(entry, ['Hours', 'hours']) || 'N/A'} hours
-                                        </Typography>
-                                    </Box>
+                                    {(() => {
+                                        const hours = getFieldValue(entry, ['Hours', 'hours']);
+                                        if (hours && hours < 8) {
+                                            return (
+                                                <Box sx={{ mb: 2 }}>
+                                                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                                                        Hours
+                                                    </Typography>
+                                                    <Typography variant="body1">
+                                                        {hours} hours
+                                                    </Typography>
+                                                </Box>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
 
                                     {getUsername(entry) && (
                                         <Box>
@@ -678,7 +1363,7 @@ const PTOCalendar = () => {
                         </Grid>
                     ))}
                 </Grid>
-            ) : (
+            ) : viewMode === 'table' ? (
                 // Table View
                 <TableContainer component={Paper} sx={{ mt: 2 }}>
                     <Table sx={{ minWidth: 650 }}>
@@ -857,6 +1542,28 @@ const PTOCalendar = () => {
                         </TableBody>
                     </Table>
                 </TableContainer>
+            ) : viewMode === 'calendar' ? (
+                // Calendar View
+                <CalendarView 
+                    entries={sortedEntries} 
+                    getEmployeeName={getEmployeeName}
+                    getDepartment={getDepartment}
+                    getLocation={getLocation}
+                    getStartDate={getStartDate}
+                    getEndDate={getEndDate}
+                    queryStartDate={queryStartDate}
+                    queryEndDate={queryEndDate}
+                />
+            ) : (
+                // Timeline View
+                <TimelineView 
+                    entries={sortedEntries} 
+                    getEmployeeName={getEmployeeName}
+                    getDepartment={getDepartment}
+                    getLocation={getLocation}
+                    getStartDate={getStartDate}
+                    getEndDate={getEndDate}
+                />
             )}
         </Container>
     );

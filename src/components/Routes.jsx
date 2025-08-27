@@ -40,7 +40,10 @@ const HammerSpaceSystemHealth = lazy(() => import('./HammerSpaceSystemHealth'));
 const HammerSpaceDataPortals = lazy(() => import('./HammerSpaceDataPortals'));
 const HammerSpaceSystemInfo = lazy(() => import('./HammerSpaceSystemInfo'));
 const HammerSpaceProjects = lazy(() => import('./HammerSpaceProjects'));
+const NASProjects = lazy(() => import('./NASProjects'));
+const S3CopyStatus = lazy(() => import('./S3CopyStatus'));
 const HammerSpaceVolumeGroups = lazy(() => import('./HammerSpaceVolumeGroups'));
+// const HammerSpaceEncrypt = lazy(() => import('./HammerSpaceEncrypt'));
 const PhysicalDrives = lazy(() => import('./PhysicalDrives'));
 const LDAPMachineInfo = lazy(() => import('./LDAPMachineInfo'));
 const OktaUsers = lazy(() => import('./OktaUsers'));
@@ -51,6 +54,7 @@ const AdobeUsers = lazy(() => import('./AdobeUsers'));
 const AdobeGroups = lazy(() => import('./AdobeGroups'));
 const ParsecUsers = lazy(() => import('./ParsecUsers'));
 const GoogleUsers = lazy(() => import('./GoogleUsers'));
+const GoogleCalendars = lazy(() => import('./GoogleCalendars'));
 const ZoomUsers = lazy(() => import('./ZoomUsers'));
 const DocusignUsers = lazy(() => import('./DocusignUsers'));
 const OktaLocations = lazy(() => import('./OktaLocations'));
@@ -62,10 +66,16 @@ const Reboot = lazy(() => import('./Reboot'));
 const PTOCalendar = lazy(() => import('./PTOCalendar'));
 const ProjectSizes = lazy(() => import('./ProjectSizes'));
 const WindowsCommand = lazy(() => import('./WindowsCommand'));
+const AWSCounts = lazy(() => import('./AWSCounts'));
+const AWSRestore = lazy(() => import('./AWSRestore'));
+const RenderManagement = lazy(() => import('./RenderManagement'));
+const AssignWorkstations = lazy(() => import('./AssignWorkstations'));
+const Dashboard = lazy(() => import('./Dashboard'));
+const DashboardLayoutWrapper = lazy(() => import('./DashboardLayoutWrapper'));
 
 
 const allowedEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co"
-const ITEmails = "harry.youngjones@buck.co,mark.rutherford@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,alexandra.rezk@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co,priscilla.pena@buck.co,glen.parker@buck.co"
+const ITEmails = "harry.youngjones@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,mike.villasana@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co"
 const PTOEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,nick@buck.co,ncarmen@buck.co,barrett.brown@buck.co,gautam.sinha@buck.co"
 
 
@@ -124,7 +134,7 @@ const AppRoutes = () => {
           </Suspense>
         }/>
       </Route>
-      <Route path="/activeselfservelicenses" element={<RequiredAuth/>}>
+      <Route path="/activeselfservelicenses" element={<RequiredAuth allowedEmail={ITEmails}/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
             <ActiveSelfServLicenses name="Active Self Serve Licenses" />
@@ -208,14 +218,44 @@ const AppRoutes = () => {
           <Suspense fallback={<LoadingFallback />}><HammerSpaceProjects /></Suspense>
         }/>
       </Route>
+      <Route path="/s3copystatus" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><S3CopyStatus /></Suspense>
+        }/>
+      </Route>
+      <Route path="/nasprojects" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><NASProjects /></Suspense>
+        }/>
+      </Route>
       <Route path="/hammerspacevolumegroups" element={<RequiredAuth/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}><HammerSpaceVolumeGroups /></Suspense>
         }/>
       </Route>
+      {/* <Route path="/hammerspaceencrypt" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><HammerSpaceEncrypt /></Suspense>
+        }/>
+      </Route> */}
 
+      <Route path="/awscounts" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><AWSCounts /></Suspense>
+        }/>
+      </Route>
 
+      <Route path="/awsrestore" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><AWSRestore /></Suspense>
+        }/>
+      </Route>
 
+      <Route path="/googlecalendars" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><GoogleCalendars /></Suspense>
+        }/>
+      </Route>
 
       <Route path="/googleusers" element={<RequiredAuth/>}>
         <Route path="" element={
@@ -293,6 +333,24 @@ const AppRoutes = () => {
       <Route path="/compositemachineinfo" element={<RequiredAuth/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}><CompositeMachineInfo /></Suspense>
+        }/>
+      </Route>
+
+      <Route path="/assignworkstations" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><AssignWorkstations /></Suspense>
+        }/>
+      </Route>
+
+      <Route path="/dashboard" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><Dashboard /></Suspense>
+        }/>
+      </Route>
+
+      <Route path="/dashboardlayout" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><DashboardLayoutWrapper /></Suspense>
         }/>
       </Route>
 
@@ -388,6 +446,14 @@ const AppRoutes = () => {
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
             <WindowsCommand name="Windows Command" />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/rendermanagement" element={<RequiredAuth allowedEmail={ITEmails}/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <RenderManagement />
           </Suspense>
         }/>
       </Route>

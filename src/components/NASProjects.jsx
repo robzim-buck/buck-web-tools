@@ -6,22 +6,73 @@ import {
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useQueries, useMutation } from "@tanstack/react-query";
 import CircularProgress from '@mui/material/CircularProgress';
 
-export default function HammerSpaceProjects(props) {
+export default function NASProjects(props) {
     const [s3Config, setS3Config] = useState({});
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     
+    // Get default location based on host/NAS
+    const getDefaultLocation = (host) => {
+        if (!host) return '';
+        const hostLower = host.toLowerCase();
+        
+        // Check for each NAS host and set appropriate location
+        if (hostLower.includes('abadal')) {
+            return 'lax';  // abadal is in LAX
+        }
+        if (hostLower.includes('caddy')) {
+            return 'nyc';  // caddy is in NYC
+        }
+        if (hostLower.includes('mavis')) {
+            return 'syd';  // mavis is in SYD
+        }
+        // Add any other NAS hosts here if needed
+        
+        return '';  // Return empty if no match
+    };
+    
+    // Get default S3 base based on location
+    const getDefaultS3Base = (location) => {
+        if (!location) return '';
+        
+        // Map each location to its corresponding S3 archive
+        switch(location.toLowerCase()) {
+            case 'lax':
+                return 'LA_Archive8';      // LAX uses LA_Archive8
+            case 'nyc':
+                return 'NY_Archive17';      // NYC uses NY_Archive17
+            case 'syd':
+                return 'SYDArchive2';       // SYD uses SYDArchive2
+            case 'ams':
+                return 'AMSArchive2';       // AMS uses AMSArchive2
+            default:
+                return '';                  // Return empty if no match
+        }
+    };
+    
     const handleS3ConfigChange = (projectId, field, value) => {
-        setS3Config(prev => ({
-            ...prev,
-            [projectId]: {
+        setS3Config(prev => {
+            const updatedConfig = {
                 ...prev[projectId],
                 [field]: value
+            };
+            
+            // If location changed, also set default S3 base
+            if (field === 'location') {
+                const defaultS3Base = getDefaultS3Base(value);
+                if (defaultS3Base) {
+                    updatedConfig.s3base = defaultS3Base;
+                }
             }
-        }));
+            
+            return {
+                ...prev,
+                [projectId]: updatedConfig
+            };
+        });
     };
     
     const copyToS3Mutation = useMutation({
@@ -64,7 +115,7 @@ export default function HammerSpaceProjects(props) {
     
     const handleCopyToS3 = (projectName) => {
         const config = s3Config[projectName] || {};
-        const s3base = config.s3base || 'HS_Archive1';
+        const s3base = config.s3base || '';
         const location = config.location;
         
         if (!location) {
@@ -86,17 +137,17 @@ export default function HammerSpaceProjects(props) {
         copyToS3Mutation.mutate({
             projectName,
             s3base: s3base,
-            nasflag: false,
+            nasflag: true,
             location: location
         });
     };
     
-    const [hammerspaceProjects] = useQueries({
+    const [nasProjects] = useQueries({
         queries: [
           {
-            queryKey: ["hammerspaceProjects"],
+            queryKey: ["nasProjects"],
             queryFn: async () => {
-                const response = await fetch("https://laxcoresrv.buck.local:8000/hammerspace/projects", {
+                const response = await fetch("https://laxcoresrv.buck.local:8000/utils/all_nas_projects", {
                     method: "GET",
                     mode: "cors",
                     headers: {
@@ -115,8 +166,31 @@ export default function HammerSpaceProjects(props) {
         },
         ]
     });
+    
+    // Set default locations and S3 base based on host when data loads
+    useEffect(() => {
+        if (nasProjects.data && Array.isArray(nasProjects.data)) {
+            const newConfig = {};
+            nasProjects.data.forEach(project => {
+                if (project.name && project.host) {
+                    const defaultLocation = getDefaultLocation(project.host);
+                    if (defaultLocation && !s3Config[project.name]?.location) {
+                        const defaultS3Base = getDefaultS3Base(defaultLocation);
+                        newConfig[project.name] = {
+                            ...s3Config[project.name],
+                            location: defaultLocation,
+                            s3base: defaultS3Base
+                        };
+                    }
+                }
+            });
+            if (Object.keys(newConfig).length > 0) {
+                setS3Config(prev => ({ ...prev, ...newConfig }));
+            }
+        }
+    }, [nasProjects.data]);
 
-    if (hammerspaceProjects.isLoading) {
+    if (nasProjects.isLoading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', py: 8 }}>
                 <CircularProgress size={60} thickness={4} />
@@ -124,44 +198,35 @@ export default function HammerSpaceProjects(props) {
         );
     }
     
-    if (hammerspaceProjects.error) {
+    if (nasProjects.error) {
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
                 <Alert severity="error" sx={{ mb: 2 }}>
-                    <Typography variant="h6" gutterBottom>Failed to load Hammerspace projects</Typography>
-                    <Typography variant="body2">{hammerspaceProjects.error.message}</Typography>
+                    <Typography variant="h6" gutterBottom>Failed to load NAS projects</Typography>
+                    <Typography variant="body2">{nasProjects.error.message}</Typography>
                 </Alert>
             </Container>
         );
     }
     
-    if (hammerspaceProjects.data) {
-        const sortedData = Array.isArray(hammerspaceProjects.data) 
-            ? hammerspaceProjects.data.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    if (nasProjects.data) {
+        const sortedData = Array.isArray(nasProjects.data) 
+            ? nasProjects.data.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
             : [];
         
         if (!sortedData || sortedData.length === 0) {
             return (
                 <Box sx={{ p: 3, textAlign: 'center' }}>
-                    <Typography variant="h5" color="text.secondary">No Hammerspace projects found</Typography>
+                    <Typography variant="h5" color="text.secondary">No NAS projects found</Typography>
                 </Box>
             );
         }
-
-        const activeProjects = sortedData.filter(project => 
-            project.status && project.status.toLowerCase().includes('active')
-        ).length;
-        
-        const projectTypes = [...new Set(sortedData.map(project => project.type).filter(Boolean))];
-        const totalSize = sortedData.reduce((sum, project) => 
-            sum + (project.size || 0), 0
-        );
 
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
                 <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant='h4' color="primary" fontWeight="medium">
-                        {props.name || 'Hammerspace Projects'}
+                        {props.name || 'NAS Projects'}
                     </Typography>
                     <Chip 
                         label={`${sortedData.length} Projects`} 
@@ -197,6 +262,9 @@ export default function HammerSpaceProjects(props) {
                                     </Box>
                                 </TableCell>
                                 <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                    Host
+                                </TableCell>
+                                <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
                                     Location
                                 </TableCell>
                                 <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
@@ -225,6 +293,11 @@ export default function HammerSpaceProjects(props) {
                                             </Typography>
                                         </TableCell>
                                         <TableCell>
+                                            <Typography variant="body2">
+                                                {project.host || '-'}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell>
                                             <FormControl size="small" sx={{ minWidth: 80 }}>
                                                 <Select
                                                     value={s3Config[project.name]?.location || ''}
@@ -243,13 +316,16 @@ export default function HammerSpaceProjects(props) {
                                         <TableCell>
                                             <FormControl size="small" sx={{ minWidth: 120 }}>
                                                 <Select
-                                                    value={s3Config[project.name]?.s3base || 'HS_Archive1'}
+                                                    value={s3Config[project.name]?.s3base || ''}
                                                     onChange={(e) => handleS3ConfigChange(project.name, 's3base', e.target.value)}
                                                     displayEmpty
                                                     size="small"
                                                 >
                                                     <MenuItem value="">-</MenuItem>
-                                                    <MenuItem value="HS_Archive1">HS_Archive1</MenuItem>
+                                                    <MenuItem value="NY_Archive17">NY_Archive17</MenuItem>
+                                                    <MenuItem value="SYDArchive2">SYDArchive2</MenuItem>
+                                                    <MenuItem value="LA_Archive8">LA_Archive8</MenuItem>
+                                                    <MenuItem value="AMSArchive2">AMSArchive2</MenuItem>
                                                 </Select>
                                             </FormControl>
                                         </TableCell>

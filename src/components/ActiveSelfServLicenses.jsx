@@ -7,7 +7,7 @@ import LinearProgress from '@mui/material/LinearProgress';
 
 import { Typography, Button, IconButton, Container, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import { Chip, Grid, Box, Card, CardContent, Collapse, Switch, FormControlLabel, Paper } from '@mui/material';
-import { Alert, AlertTitle, Snackbar } from '@mui/material';
+import { Alert, AlertTitle, Snackbar, Checkbox } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckIcon from '@mui/icons-material/Check';
@@ -20,6 +20,9 @@ import Divider from '@mui/material/Divider';
 import SortIcon from '@mui/icons-material/Sort';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import React from 'react';
 
 // import { DataGrid } from '@mui/x-data-grid';
 
@@ -273,6 +276,13 @@ export default function ActiveSelfServLicenses(props) {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     
+    // Add state for license summary card collapse
+    const [licenseSummaryExpanded, setLicenseSummaryExpanded] = useState(true);
+    
+    // Add state for selected licenses in table view
+    const [selectedLicenses, setSelectedLicenses] = useState([]);
+    const [productForBulkReturn, setProductForBulkReturn] = useState('');
+    
     // Function to toggle user card expansion
     const toggleUserExpand = (email) => {
         setExpandedUsers(prev => ({
@@ -333,6 +343,8 @@ export default function ActiveSelfServLicenses(props) {
     .then(data => {
       setPrevisible(false)
       setSuccessvisible(true);
+      // Remove the released license from selected licenses
+      setSelectedLicenses(prev => prev.filter(l => !(l.email === useremail && l.product === license)));
       return data;
     })
     .catch(error => {
@@ -340,6 +352,7 @@ export default function ActiveSelfServLicenses(props) {
       setPrevisible(false);
     });
   }
+  
 
 
     // Function to handle license returns
@@ -760,6 +773,63 @@ export default function ActiveSelfServLicenses(props) {
     }
 
     const activeLicenses = licenseQuery[0];
+    
+    // Clear selections when switching views or filters change
+    React.useEffect(() => {
+        setSelectedLicenses([]);
+        if (!tableView) {
+            setProductForBulkReturn('');
+        }
+    }, [tableView, emailfilter, productfilter]);
+    
+    // Function to handle bulk license returns
+    async function releaseBulkLicenses() {
+        if (selectedLicenses.length === 0) {
+            alert('Please select licenses to return');
+            return;
+        }
+        
+        setOperation('Returning multiple');
+        setPrevisible(true);
+        setProduct('licenses');
+        setUser(`${selectedLicenses.length} users`);
+        
+        const releasePromises = selectedLicenses.map(license => {
+            const url = `${endpoint}/licenses/release_self_service_license?product=${license.product.toLowerCase()}&email=${license.email}`;
+            
+            return fetch(url, {
+                method: 'POST',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+                }
+            })
+            .then(response => response.json())
+            .then(data => ({ success: true, license, data }))
+            .catch(error => ({ success: false, license, error }));
+        });
+        
+        try {
+            const results = await Promise.all(releasePromises);
+            const successCount = results.filter(r => r.success).length;
+            
+            setPrevisible(false);
+            setSuccessvisible(true);
+            setOperation(`Successfully returned`);
+            setProduct(`${successCount} of ${selectedLicenses.length} licenses`);
+            setUser('');
+            
+            // Clear selected licenses
+            setSelectedLicenses([]);
+            
+            // Refresh the data
+            activeLicenses.refetch();
+        } catch (error) {
+            console.error('Error in bulk release:', error);
+            setPrevisible(false);
+        }
+    }
 
     if (activeLicenses.isLoading) return <CircularProgress></CircularProgress>;
     if (activeLicenses.error) return "An error has occurred: " + activeLicenses.error.message;
@@ -819,6 +889,13 @@ export default function ActiveSelfServLicenses(props) {
             console.log('Filtering by product:', productfilter);
             filteredData = filteredData.filter((f) => f.product && f.product.toLowerCase().includes(productfilter.toLowerCase()));
             console.log('After product filter, items:', filteredData.length);
+        }
+        
+        // Apply product filter for bulk return (table view only)
+        if (productForBulkReturn && productForBulkReturn.length > 0) {
+            console.log('Filtering by product for bulk return:', productForBulkReturn);
+            filteredData = filteredData.filter((f) => f.product && f.product.toLowerCase() === productForBulkReturn.toLowerCase());
+            console.log('After product bulk filter, items:', filteredData.length);
         }
         
         // Only use sample data if there's no real data AND no active filters
@@ -896,37 +973,48 @@ export default function ActiveSelfServLicenses(props) {
                         width: '100%'
                     }}
                 >
-                    <Grid container spacing={3}>
-                        <Grid item size={6}>
-                            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {/* Header with collapse button */}
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="h6" gutterBottom>License Summary / License Status</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Tooltip title="Total Licenses">
+                                <Chip 
+                                    icon={<DashboardIcon fontSize="small" />}
+                                    label={`${finalSortedData.length} Total`}
+                                    color="primary"
+                                    sx={{ fontWeight: 'bold' }}
+                                />
+                            </Tooltip>
+                            <Tooltip title="Unique Users">
+                                <Chip 
+                                    label={`${emailUniqueEntries(finalSortedData)} Users`}
+                                    color="primary"
+                                    sx={{ fontWeight: 'bold' }}
+                                />
+                            </Tooltip>
+                            {extendedCount > 0 && (
+                                <Tooltip title="Extended Duration Licenses">
+                                    <Chip 
+                                        label={`${extendedCount} Extensions`}
+                                        color="info"
+                                        sx={{ fontWeight: 'bold' }}
+                                    />
+                                </Tooltip>
+                            )}
+                            <IconButton
+                                onClick={() => setLicenseSummaryExpanded(!licenseSummaryExpanded)}
+                                size="small"
+                                sx={{ ml: 1 }}
+                            >
+                                {licenseSummaryExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                            </IconButton>
+                        </Box>
+                    </Box>
+                    
+                    <Collapse in={licenseSummaryExpanded}>
+                        <Grid container spacing={3}>
+                            <Grid item size={6}>
                                 <Typography variant="h6" gutterBottom>License Summary</Typography>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                    <Tooltip title="Total Licenses">
-                                        <Chip 
-                                            icon={<DashboardIcon fontSize="small" />}
-                                            label={`${finalSortedData.length} Total`}
-                                            color="primary"
-                                            sx={{ fontWeight: 'bold' }}
-                                        />
-                                    </Tooltip>
-                                    <Tooltip title="Unique Users">
-                                        <Chip 
-                                            label={`${emailUniqueEntries(finalSortedData)} Users`}
-                                            color="primary"
-                                            sx={{ fontWeight: 'bold' }}
-                                        />
-                                    </Tooltip>
-                                    {extendedCount > 0 && (
-                                        <Tooltip title="Extended Duration Licenses">
-                                            <Chip 
-                                                label={`${extendedCount} Extensions`}
-                                                color="info"
-                                                sx={{ fontWeight: 'bold' }}
-                                            />
-                                        </Tooltip>
-                                    )}
-                                </Box>
-                            </Box>
                             
                             {/* Product Distribution Visualization */}
                             <Card sx={{ p: 2, mb: 2, bgcolor: '#f9f9f9', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
@@ -992,6 +1080,14 @@ export default function ActiveSelfServLicenses(props) {
                                         total={finalSortedData.length} 
                                         color="#0078D7" 
                                     />
+                                    
+                                    {/* Maya */}
+                                    <ProductBar 
+                                        name="Maya" 
+                                        count={productCount(finalSortedData, 'maya')} 
+                                        total={finalSortedData.length} 
+                                        color="#006064" 
+                                    />
                                 </Box>
                             </Card>
                         </Grid>
@@ -1045,15 +1141,11 @@ export default function ActiveSelfServLicenses(props) {
                             </Card>
                         </Grid>
                     </Grid>
+                    </Collapse>
                 </Card>
 
-                {/* No licenses found message */}
-                {(!filteredData || filteredData.length === 0) && (
-                    <Typography>No licenses found with the current filters</Typography>
-                )}
-                
-                {/* Filters Section */}
-                {filteredData && filteredData.length > 0 && (
+                {/* Filters Section - Always show */}
+                {(
                     <Card 
                         variant="outlined" 
                         sx={{ 
@@ -1066,14 +1158,47 @@ export default function ActiveSelfServLicenses(props) {
                     >
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                             <Typography variant="h6" gutterBottom>Filters & View Options</Typography>
-                            <Button
-                                variant="contained"
-                                color={tableView ? "secondary" : "primary"}
-                                onClick={toggleTableView}
-                                sx={{ ml: 2 }}
-                            >
-                                {tableView ? "Card View" : "Table View"}
-                            </Button>
+                            <Box sx={{ display: 'flex', gap: 2 }}>
+                                {tableView && (
+                                    <FormControl size="small" sx={{ minWidth: 200, backgroundColor: 'white' }}>
+                                        <InputLabel>Filter by Product</InputLabel>
+                                        <Select
+                                            value={productForBulkReturn}
+                                            onChange={(e) => {
+                                                setProductForBulkReturn(e.target.value);
+                                            }}
+                                            label="Filter by Product"
+                                            sx={{ backgroundColor: 'white' }}
+                                            MenuProps={{
+                                                PaperProps: {
+                                                    style: {
+                                                        backgroundColor: 'white',
+                                                        color: 'black'
+                                                    }
+                                                }
+                                            }}
+                                        >
+                                            <MenuItem value="">All Products</MenuItem>
+                                            <MenuItem value="adobe">Adobe</MenuItem>
+                                            <MenuItem value="acrobat">Acrobat</MenuItem>
+                                            <MenuItem value="substance">Substance</MenuItem>
+                                            <MenuItem value="figma">Figma</MenuItem>
+                                            <MenuItem value="figjam">Figjam</MenuItem>
+                                            <MenuItem value="figmafigjam">Figma/Figjam</MenuItem>
+                                            <MenuItem value="mso365">MS Office 365</MenuItem>
+                                            <MenuItem value="maya">Maya</MenuItem>
+                                            <MenuItem value="aquarium">Aquarium</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                )}
+                                <Button
+                                    variant="contained"
+                                    color={tableView ? "secondary" : "primary"}
+                                    onClick={toggleTableView}
+                                >
+                                    {tableView ? "Card View" : "Table View"}
+                                </Button>
+                            </Box>
                         </Box>
                         
                         <Grid container spacing={2}>
@@ -1195,15 +1320,41 @@ export default function ActiveSelfServLicenses(props) {
                     </Card>
                 )}
 
+                {/* No licenses found message */}
+                {(!filteredData || filteredData.length === 0) && (
+                    <Typography variant="body1" color="text.secondary" sx={{ mb: 2, textAlign: 'center', py: 4 }}>
+                        No licenses found with the current filters
+                    </Typography>
+                )}
+
                 {/* Start of content when we have licenses */}
                 {filteredData && filteredData.length > 0 && (
                     <>
                         {/* Table View */}
                         {tableView && (
                             <Box sx={{ width: '100%', height: 'auto', minHeight: 40 }}>
-                                <Typography variant="h6" color="primary" sx={{ mb: 2 }}>
-                                    Showing all {filteredData.length} licenses in table format
-                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                    <Typography variant="h6" color="primary">
+                                        Showing all {filteredData.length} licenses in table format
+                                    </Typography>
+                                    {selectedLicenses.length > 0 && (
+                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                            <Chip
+                                                label={`${selectedLicenses.length} licenses selected`}
+                                                color="primary"
+                                                onDelete={() => setSelectedLicenses([])}
+                                            />
+                                            <Button
+                                                variant="contained"
+                                                color="error"
+                                                onClick={releaseBulkLicenses}
+                                                startIcon={<DeleteIcon />}
+                                            >
+                                                Return Selected Licenses
+                                            </Button>
+                                        </Box>
+                                    )}
+                                </Box>
                                 
                                 {/* Add debug info in case of empty data */}
                                 {filteredData.length === 0 ? (
@@ -1524,6 +1675,29 @@ export default function ActiveSelfServLicenses(props) {
                                                                 )}
                                                             </th>
                                                             <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
+                                                            <th style={{ padding: '12px', textAlign: 'center', width: '50px' }}>
+                                                                <Checkbox
+                                                                    size="small"
+                                                                    checked={selectedLicenses.length > 0 && selectedLicenses.length === sortTableData(filteredData).slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length}
+                                                                    indeterminate={selectedLicenses.length > 0 && selectedLicenses.length < sortTableData(filteredData).slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).length}
+                                                                    onChange={(e) => {
+                                                                        const visibleData = sortTableData(filteredData).slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+                                                                        if (e.target.checked) {
+                                                                            const newSelections = [...selectedLicenses];
+                                                                            visibleData.forEach(license => {
+                                                                                if (!newSelections.some(l => l.email === license.email && l.product === license.product)) {
+                                                                                    newSelections.push(license);
+                                                                                }
+                                                                            });
+                                                                            setSelectedLicenses(newSelections);
+                                                                        } else {
+                                                                            setSelectedLicenses(selectedLicenses.filter(selected => 
+                                                                                !visibleData.some(visible => visible.email === selected.email && visible.product === selected.product)
+                                                                            ));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -1560,6 +1734,9 @@ export default function ActiveSelfServLicenses(props) {
                                                                 >
                                                                     Return
                                                                 </button>
+                                                            </td>
+                                                            <td style={{ padding: '10px', textAlign: 'center' }}>
+                                                                <input type="checkbox" />
                                                             </td>
                                                         </tr>
                                                         
@@ -1652,6 +1829,19 @@ export default function ActiveSelfServLicenses(props) {
                                                                                 Return
                                                                             </button>
                                                                         </td>
+                                                                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                                                                            <Checkbox
+                                                                                size="small"
+                                                                                checked={selectedLicenses.some(l => l.email === license.email && l.product === license.product)}
+                                                                                onChange={(e) => {
+                                                                                    if (e.target.checked) {
+                                                                                        setSelectedLicenses([...selectedLicenses, license]);
+                                                                                    } else {
+                                                                                        setSelectedLicenses(selectedLicenses.filter(l => !(l.email === license.email && l.product === license.product)));
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                        </td>
                                                                     </tr>
                                                                 );
                                                             })}
@@ -1659,7 +1849,7 @@ export default function ActiveSelfServLicenses(props) {
                                                         {/* Empty row placeholder when no data */}
                                                         {filteredData.length === 0 && (
                                                             <tr>
-                                                                <td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                                                                <td colSpan={7} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
                                                                     No license data available
                                                                 </td>
                                                             </tr>
@@ -1675,7 +1865,7 @@ export default function ActiveSelfServLicenses(props) {
                                                                 console.error("Error rendering table rows:", error);
                                                                 return (
                                                                     <tr>
-                                                                        <td colSpan={6} style={{ padding: '20px', textAlign: 'center', background: '#ffebee', color: '#d32f2f' }}>
+                                                                        <td colSpan={7} style={{ padding: '20px', textAlign: 'center', background: '#ffebee', color: '#d32f2f' }}>
                                                                             <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
                                                                                 Error rendering license data
                                                                             </div>
@@ -1812,17 +2002,18 @@ export default function ActiveSelfServLicenses(props) {
                                             key={user.email} 
                                             variant="outlined" 
                                             sx={{ 
-                                                mb: 2, 
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                                borderLeft: hasExpiring ? '4px solid #f44336' : '4px solid #4caf50',
+                                                mb: 1, 
+                                                boxShadow: 'none',
+                                                border: '1px solid rgba(0,0,0,0.1)',
+                                                borderLeft: hasExpiring ? '3px solid #f44336' : '3px solid #4caf50',
                                                 transition: 'all 0.2s ease-in-out',
                                                 '&:hover': {
-                                                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                                                    transform: 'translateY(-2px)'
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                                    transform: 'translateY(-1px)'
                                                 }
                                             }}
                                         >
-                                            <CardContent sx={{ py: 2 }}>
+                                            <CardContent sx={{ py: 1, px: 2 }}>
                                                 <Box sx={{
                                                     display: 'flex',
                                                     justifyContent: 'space-between',
@@ -1840,7 +2031,7 @@ export default function ActiveSelfServLicenses(props) {
                                                                 display: 'flex',
                                                                 justifyContent: 'center',
                                                                 alignItems: 'center',
-                                                                mr: 2,
+                                                                mr: 1.5,
                                                                 flexShrink: 0,
                                                                 color: 'white',
                                                                 fontWeight: 'bold'
@@ -1866,22 +2057,10 @@ export default function ActiveSelfServLicenses(props) {
                                                         display: 'flex',
                                                         flexDirection: 'column',
                                                         flexGrow: 1,
-                                                        px: 3,
+                                                        px: 2,
                                                         maxWidth: '50%',
                                                         width: '100%'
                                                     }}>
-                                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
-                                                            {user.products && user.products.map(product => (
-                                                                <Chip
-                                                                    key={product}
-                                                                    label={product}
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    color="secondary"
-                                                                />
-                                                            ))}
-                                                        </Box>
-
                                                         {/* Progress bars for each license */}
                                                         <Box sx={{ width: '100%' }}>
                                                             {user.licenses && user.licenses.map(license => {
@@ -1905,8 +2084,8 @@ export default function ActiveSelfServLicenses(props) {
                                                                 }
 
                                                                 return (
-                                                                    <Box key={license.email + license.product + license.timestamp} sx={{ mb: 1 }}>
-                                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                                                    <Box key={license.email + license.product + license.timestamp} sx={{ mb: 0.5 }}>
+                                                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
                                                                             <Typography variant="caption" fontWeight="medium">
                                                                                 {license.product}
                                                                             </Typography>
@@ -1922,8 +2101,8 @@ export default function ActiveSelfServLicenses(props) {
                                                                             variant="determinate"
                                                                             value={percentRemaining}
                                                                             sx={{
-                                                                                height: 6,
-                                                                                borderRadius: 3,
+                                                                                height: 4,
+                                                                                borderRadius: 2,
                                                                                 bgcolor: 'rgba(0,0,0,0.05)',
                                                                                 '& .MuiLinearProgress-bar': {
                                                                                     bgcolor: progressColor,
@@ -1934,10 +2113,6 @@ export default function ActiveSelfServLicenses(props) {
                                                                 );
                                                             })}
                                                         </Box>
-
-                                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                                                            {productCount} product{productCount !== 1 ? 's' : ''} • {licenseCount} license{licenseCount !== 1 ? 's' : ''}
-                                                        </Typography>
                                                     </Box>
 
                                                     {/* Right section - Button */}
@@ -1959,8 +2134,8 @@ export default function ActiveSelfServLicenses(props) {
                                                 </Box>
 
                                                 <Collapse in={isExpanded}>
-                                                    <Box sx={{ mt: 3, pt: 2, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-                                                        <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold', color: 'text.primary' }}>
+                                                    <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                                                        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 'bold', color: 'text.primary' }}>
                                                             License Details
                                                         </Typography>
                                                         
@@ -1984,7 +2159,7 @@ export default function ActiveSelfServLicenses(props) {
                                                                     key={uuid()} 
                                                                     variant="outlined" 
                                                                     sx={{ 
-                                                                        mb: 2, 
+                                                                        mb: 1, 
                                                                         backgroundColor: 'rgba(0,0,0,0.02)',
                                                                         borderColor: 'rgba(0,0,0,0.09)',
                                                                         position: 'relative',
@@ -2018,8 +2193,8 @@ export default function ActiveSelfServLicenses(props) {
 
                                                                     </Box>
                                                                     
-                                                                    <CardContent sx={{ py: 2 }}>
-                                                                        <Grid container spacing={2}>
+                                                                    <CardContent sx={{ py: 1.5, px: 2 }}>
+                                                                        <Grid container spacing={1}>
                                                                             <Grid item size={3}>
                                                                                 <Typography variant="caption" color="text.secondary">
                                                                                     Product

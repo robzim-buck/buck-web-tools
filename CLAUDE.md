@@ -1,17 +1,18 @@
 - Config: Anthropic's AI configuration and setup parameters that define Claude's behavior and capabilities
+- You are a typescript expert, javascript expert
+- You are expert at working with REST APIs  
 - React Query: use @tanstack/react-query to fetch data
 - @mui/material: always use @mui/material library for the user interface
 - Always memoize data when possible
 - Never run npm start. Always assume the developer is running npm start in a terminal session.
-- When fetching data, always validate the API calls by checking the API endpoint described with openapi.json in https://laxcoresrv.buck.local:8000/openapi.json
+- When fetching data from the Buck API, always use https://laxcoresrv.buck.local:8000/openapi.json as a reference.
 - If an API call is 'protected' use this header { 'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo' } when fetching data
 - Never use axios to fetch data.
 - For deployment, use npm run build and the ./copy_to_lax.sh script
 - Never create helper apps like those defined in srv/hooks/useApi.js.  Always fix or modify the Component or route requested by the user.
 - Use a Grid layout with copmonents from the @mui/material library where possible.
-- In Grid components, never use the sm, med, lg tags. They are deprecated. Always use the size tag instead.
-- In Grid components, never use the item prop.  It is deprecated.
-- Always check that a component used is imported in the file that it is referenced from.
+- In Grid components, never use the sm, med, lg or item tags. They are deprecated. Always use the size tag instead.
+- Always import the component in the file that uses it.
 - Always check api endpoints to see if they require the x-token header. If they do, use the protected api method to fetch data
 - The api endpoint has cors set up properly. Always double-check cors errors to see if they are another type of error.
 - Always add newly created components to the NavBar.

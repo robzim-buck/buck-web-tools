@@ -188,18 +188,31 @@ export const useProtectedApiMutation = (endpoint, options = {}) => {
 
   return useMutation({
     mutationFn: async (data) => {
-      console.log(`Protected API ${method} request to: ${url}`, data);
-      const response = await fetch(url, {
+      // Support dynamic endpoint from data.endpoint
+      let finalUrl = data.endpoint ? `${baseUrl}${data.endpoint}` : url;
+      
+      // Support query parameters from data.params
+      if (data.params) {
+        const queryString = new URLSearchParams(data.params).toString();
+        finalUrl = `${finalUrl}?${queryString}`;
+      }
+      
+      // Prepare body - exclude endpoint, params, and other metadata
+      const { endpoint: _, params: __, ...bodyData } = data || {};
+      const hasBody = Object.keys(bodyData).length > 0;
+      
+      console.log(`Protected API ${method} request to: ${finalUrl}`, hasBody ? bodyData : 'no body');
+      const response = await fetch(finalUrl, {
         method,
         headers: {
           'Content-Type': 'application/json',
           'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
         },
-        body: JSON.stringify(data),
+        body: (method !== 'GET' && hasBody) ? JSON.stringify(bodyData) : undefined,
       });
 
       if (!response.ok) {
-        console.error(`Error response from ${url}: ${response.status} ${response.statusText}`);
+        console.error(`Error response from ${finalUrl}: ${response.status} ${response.statusText}`);
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
 
@@ -212,7 +225,7 @@ export const useProtectedApiMutation = (endpoint, options = {}) => {
         result = await response.text();
       }
       
-      console.log(`Protected API ${method} response from ${url}:`, result);
+      console.log(`Protected API ${method} response from ${finalUrl}:`, result);
       return result;
     },
     onSuccess: () => {

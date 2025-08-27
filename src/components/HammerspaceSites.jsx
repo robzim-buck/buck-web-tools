@@ -30,6 +30,7 @@ export default function HammerspaceSites(props) {
             queryFn: async () => {
                 const response = await fetch("https://laxcoresrv.buck.local:8000/hammerspace?item=sites", {
                     method: "GET",
+                    mode: "cors",
                     headers: {
                         "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo",
                         "Content-type": "application/json"
@@ -67,7 +68,13 @@ export default function HammerspaceSites(props) {
     }
     
     if (hammerspaceSites.data) {
-        const sortedData = hammerspaceSites.data.sort((a, b) => a.name.localeCompare(b.name));
+        // Debug: Log the structure to understand the data format
+        console.log('HammerspaceSites raw data:', hammerspaceSites.data);
+        
+        // Check if data is wrapped in a 'results' field
+        const rawData = hammerspaceSites.data.results || hammerspaceSites.data;
+        const dataArray = Array.isArray(rawData) ? rawData : [];
+        const sortedData = dataArray.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         
         if (!sortedData || sortedData.length === 0) {
             return (

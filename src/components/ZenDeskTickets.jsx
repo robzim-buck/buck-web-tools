@@ -20,7 +20,9 @@ import {
   Email as EmailIcon,
   Event as EventIcon,
   Person as PersonIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -64,6 +66,7 @@ export default function ZenDeskTickets(props) {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dateValue, setDateValue] = useState(null);
   const [dateString, setDateString] = useState('');
+  const [expandedRows, setExpandedRows] = useState(new Set());
 
   // Fetch tickets data
   const fetchTickets = async () => {
@@ -129,6 +132,17 @@ export default function ZenDeskTickets(props) {
       relative: date.fromNow(),
       formatted: date.format('MMM D, YYYY h:mm A')
     };
+  };
+
+  // Handle row expansion toggle
+  const handleExpandClick = (ticketId) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(ticketId)) {
+      newExpanded.delete(ticketId);
+    } else {
+      newExpanded.add(ticketId);
+    }
+    setExpandedRows(newExpanded);
   };
 
   // Loading state
@@ -322,7 +336,7 @@ export default function ZenDeskTickets(props) {
                   />
                   
                   <FormControl sx={{ minWidth: 120 }} size="small">
-                    <InputLabel id="priority-filter-label">Priority</InputLabel>
+                    <InputLabel id="priority-filter-label" sx={{ backgroundColor: 'white', px: 0.5 }}>Priority</InputLabel>
                     <Select
                       labelId="priority-filter-label"
                       id="priority-filter"
@@ -330,6 +344,12 @@ export default function ZenDeskTickets(props) {
                       label="Priority"
                       onChange={(e) => setPriorityFilter(e.target.value)}
                       displayEmpty
+                      sx={{ 
+                        backgroundColor: 'white',
+                        '& .MuiSelect-select': {
+                          backgroundColor: 'white'
+                        }
+                      }}
                       MenuProps={{
                         PaperProps: {
                           style: {
@@ -397,7 +417,8 @@ export default function ZenDeskTickets(props) {
             <Table size="medium">
               <TableHead>
                 <TableRow>
-                  <TableCell width="30%">Subject</TableCell>
+                  <TableCell width="5%"></TableCell>
+                  <TableCell width="28%">Subject</TableCell>
                   <TableCell width="15%">From</TableCell>
                   <TableCell width="10%">Priority</TableCell>
                   <TableCell width="15%">Last Updated</TableCell>
@@ -410,21 +431,32 @@ export default function ZenDeskTickets(props) {
                   const updatedDate = formatDate(ticket.updated_at);
                   const fromName = ticket.via?.source?.from?.name || 'N/A';
                   const fromEmail = ticket.via?.source?.from?.address || 'N/A';
+                  const isExpanded = expandedRows.has(ticket.id);
                   
                   return (
-                    <TableRow 
-                      key={uuid()}
-                      hover
-                      sx={{ 
-                        '&:last-child td, &:last-child th': { border: 0 },
-                        borderLeft: ticket.priority === 'urgent' 
-                          ? '3px solid #f44336' 
-                          : ticket.priority === 'high'
-                            ? '3px solid #ff9800'
-                            : undefined
-                      }}
-                    >
-                      <TableCell>
+                    <>
+                      <TableRow 
+                        key={uuid()}
+                        hover
+                        sx={{ 
+                          '&:last-child td, &:last-child th': { border: 0 },
+                          borderLeft: ticket.priority === 'urgent' 
+                            ? '3px solid #f44336' 
+                            : ticket.priority === 'high'
+                              ? '3px solid #ff9800'
+                              : undefined
+                        }}
+                      >
+                        <TableCell>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleExpandClick(ticket.id)}
+                            aria-label="expand row"
+                          >
+                            {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                          </IconButton>
+                        </TableCell>
+                        <TableCell>
                         <Typography variant="body2" fontWeight="medium">{ticket.subject}</Typography>
                         <Typography 
                           variant="caption" 
@@ -479,6 +511,36 @@ export default function ZenDeskTickets(props) {
                         <Typography variant="body2">{ticket.id}</Typography>
                       </TableCell>
                     </TableRow>
+                    {isExpanded && (
+                      <TableRow>
+                        <TableCell colSpan={7} sx={{ py: 0 }}>
+                          <Box sx={{ m: 2 }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              Raw JSON Data
+                            </Typography>
+                            <Paper 
+                              variant="outlined" 
+                              sx={{ 
+                                p: 2, 
+                                backgroundColor: '#f5f5f5',
+                                overflowX: 'auto'
+                              }}
+                            >
+                              <pre style={{ 
+                                margin: 0, 
+                                fontFamily: 'monospace', 
+                                fontSize: '12px',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word'
+                              }}>
+                                {JSON.stringify(ticket, null, 2)}
+                              </pre>
+                            </Paper>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
                   );
                 })}
               </TableBody>

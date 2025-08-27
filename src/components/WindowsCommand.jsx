@@ -63,20 +63,37 @@ export default function WindowsCommand(props) {
     // Execute Windows PowerShell command
     const windowsCommandQuery = useQuery({
         queryKey: ["windowsCommand", commandToExecute, hostName],
-        queryFn: () => {
+        queryFn: async () => {
             const encodedCommand = encodeURIComponent(commandToExecute);
             const apiEndpoint = `https://laxcoresrv.buck.local:8000/powershell/run_command_on_windows_host/${hostName}/${encodedCommand}`;
-            return fetch(apiEndpoint, {
+            const response = await fetch(apiEndpoint, {
                 method: 'POST',
                 headers: {
                     'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
                 }
-            }).then((res) => res.json());
+            });
+            
+            // Return text directly
+            const text = await response.text();
+            console.log('Raw response text:', text);
+            return text;
         },
         enabled: executeCommand
     });
 
     const renderCommandResult = (data) => {
+        console.log('renderCommandResult called with data:', data);
+        console.log('Data type:', typeof data);
+        
+        // Handle null or undefined data
+        if (data === null || data === undefined) {
+            return (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                    No data returned from the command.
+                </Alert>
+            );
+        }
+        
         // First, check if data is a string that starts with '['
         if (typeof data === 'string' && data.includes('[')) {
             // Find the start of the array
@@ -222,21 +239,41 @@ export default function WindowsCommand(props) {
                 );
             }
         } else {
-            // For plain strings, split by newlines
-            const lines = String(data).split('\n');
+            // For plain strings, first try to split by commas, then by newlines
+            let lines = [];
+            const stringData = String(data);
+            
+            // Check if the string contains commas - if so, split by commas
+            if (stringData.includes(',')) {
+                lines = stringData.split(',').map(item => item.trim()).filter(line => line !== '');
+            } else {
+                // Otherwise, split by newlines as before
+                lines = stringData.split('\n').filter(line => line !== '');
+            }
+            
+            // If no lines with content, show a message
+            if (lines.length === 0) {
+                return (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                        Command completed successfully but returned no output.
+                    </Alert>
+                );
+            }
+            
             return (
                 <Box sx={{ mt: 2, bgcolor: 'grey.100', p: 2, borderRadius: 1 }}>
                     <List dense>
                         {lines.map((line, index) => (
                             <ListItem key={index} sx={{ py: 0, minHeight: 'auto' }}>
                                 <ListItemText 
-                                    primary={line || '\u00A0'}
+                                    primary={line}
                                     slotProps={{
                                         primary: {
                                             sx: {
                                                 fontFamily: 'monospace',
                                                 fontSize: '0.875rem',
-                                                whiteSpace: 'pre-wrap'
+                                                whiteSpace: 'pre-wrap',
+                                                wordBreak: 'break-all'
                                             }
                                         }
                                     }}
@@ -272,10 +309,10 @@ export default function WindowsCommand(props) {
                 status: getMachineStatus(machine)
             }))
             .sort((a, b) => {
-                // Sort online machines first, then by name
+                // Sort online machines first, then by name (case-insensitive)
                 if (a.status === 'online' && b.status !== 'online') return -1;
                 if (a.status !== 'online' && b.status === 'online') return 1;
-                return a.name.localeCompare(b.name);
+                return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
             })
         : [];
 
@@ -286,12 +323,12 @@ export default function WindowsCommand(props) {
                 
                 <Box sx={{ mb: 3 }}>
                     <FormControl fullWidth sx={{ mb: 2 }}>
-                        <InputLabel id="command-select-label">Common Commands</InputLabel>
+                        <InputLabel id="command-select-label">Common PowerShell Commands</InputLabel>
                         <Select
                             labelId="command-select-label"
                             id="command-select"
                             value={selectedCommand}
-                            label="Common Commands"
+                            label="Common Powershell Commands"
                             onChange={handleCommandSelect}
                             variant="outlined"
                             MenuProps={{
@@ -319,13 +356,13 @@ export default function WindowsCommand(props) {
                                     backgroundColor: '#ffffff !important'
                                 },
                                 '& .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
+                                    backgroundColor: 'white'
                                 },
                                 '&:hover .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
+                                    backgroundColor: 'white'
                                 },
                                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
+                                    backgroundColor: 'white'
                                 }
                             }}
                         >
@@ -348,6 +385,11 @@ export default function WindowsCommand(props) {
                         }}
                         sx={{ mb: 2 }}
                         placeholder="e.g., dir, Get-Process, Get-Service"
+                        slotProps={{
+                            input: {
+                                startAdornment: 'powershell ',
+                            },
+                        }}
                     />
                     
                     <FormControl fullWidth sx={{ mb: 2 }}>
@@ -385,13 +427,13 @@ export default function WindowsCommand(props) {
                                     backgroundColor: '#ffffff !important'
                                 },
                                 '& .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
+                                    backgroundColor: 'white'
                                 },
                                 '&:hover .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
+                                    backgroundColor: 'white'
                                 },
                                 '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                    backgroundColor: 'transparent'
+                                    backgroundColor: 'white'
                                 }
                             }}
                         >
@@ -416,6 +458,15 @@ export default function WindowsCommand(props) {
                             )}
                         </Select>
                     </FormControl>
+                    
+                    <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            Selected Host: <strong>{hostName}</strong>
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Command: <strong>{commandToExecute}</strong>
+                        </Typography>
+                    </Box>
                     
                     <Button
                         variant="contained"
@@ -443,8 +494,13 @@ export default function WindowsCommand(props) {
                             Command: {commandToExecute}
                         </Typography>
                         {(() => {
+                            console.log('Full query data:', windowsCommandQuery.data);
+                            console.log('Looking for hostData with key:', hostName);
+                            
                             // Check if the data has a host key with the result
                             const hostData = windowsCommandQuery.data[hostName];
+                            console.log('hostData found:', hostData);
+                            
                             if (hostData !== undefined) {
                                 return renderCommandResult(hostData);
                             }

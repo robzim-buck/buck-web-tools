@@ -13,6 +13,7 @@
 import { useOktaAuth } from '@okta/okta-react';
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useProtectedApiGet } from './hooks/useApi';
 import { 
   Box, 
   List, 
@@ -65,12 +66,14 @@ import {
   Archive as ArchiveIcon,
   RestartAlt as RestartAltIcon,
   CalendarToday as CalendarTodayIcon,
-  TableChart as TableChartIcon
+  TableChart as TableChartIcon,
+  Lock as LockIcon,
+  CloudQueue as CloudQueueIcon
 } from '@mui/icons-material';
 
 // Email lists from Routes.jsx
 const allowedEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co";
-const ITEmails = "harry.youngjones@buck.co,mj.hilomen@buck.co,daniel.hernandez@buck.co,mark.rutherford@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,alexandra.rezk@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co,priscilla.pena@buck.co,glen.parker@buck.co,mike.villasana@buck.co";
+const ITEmails = "harry.youngjones@buck.co,mj.hilomen@buck.co,daniel.hernandez@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co,mike.villasana@buck.co";
 
 const Navbar = () => {
   const { authState, oktaAuth } = useOktaAuth();
@@ -79,10 +82,27 @@ const Navbar = () => {
     licenseManagement: true,
     infrastructure: true,
     storage: true,
+    storageManagement: true,
     finance: true,
     monitoring: true,
     account: true
   });
+
+  const userEmail = authState?.idToken?.claims?.email;
+  const { data: oktaUserData } = useProtectedApiGet(
+    '/buckokta/category/att/comparison/match',
+    {
+      queryParams: {
+        _category: 'users',
+        _att: 'email',
+        _comparison: 'eq',
+        _match: userEmail
+      },
+      queryConfig: {
+        enabled: !!userEmail
+      }
+    }
+  );
 
   const toggleCollapse = (section) => {
     setCollapsed(prev => ({
@@ -100,6 +120,24 @@ const Navbar = () => {
     return emailList.includes(authState.idToken.claims.email);
   };
 
+
+  // Function to check if user is in IT department based on Okta data
+  const isITDepartment = () => {
+    if (!oktaUserData || !Array.isArray(oktaUserData) || oktaUserData.length === 0) {
+      return false;
+    }
+    
+    const userData = oktaUserData[0];
+    const department = userData?.profile?.department;
+    
+    // If no department field exists, return false
+    if (!department) {
+      return false;
+    }
+    
+    return department === 'IT';
+  };
+
   const login = async () => oktaAuth.signInWithRedirect();
   const logout = async () => oktaAuth.signOut();
 
@@ -108,7 +146,7 @@ const Navbar = () => {
   }
 
   return (
-    <Paper elevation={0} sx={{ borderRadius: 0, overflow: 'hidden', height: '100%', boxShadow: 'none', backgroundColor: 'transparent' }}>
+    <Paper elevation={0} sx={{ borderRadius: 0, overflow: 'hidden', height: '100%', boxShadow: 'none', backgroundColor: 'white' }}>
       <Box sx={{ pt: 2, pb: 1, display: 'flex', justifyContent: 'center' }}>
         <Box 
           component="img" 
@@ -122,6 +160,15 @@ const Navbar = () => {
       <List component="nav" dense sx={{ width: '100%', pt: 1 }}>
         {authState.isAuthenticated && (
           <>
+            {/* Department Display */}
+            {oktaUserData && Array.isArray(oktaUserData) && oktaUserData.length > 0 && oktaUserData[0]?.profile?.department && (
+              <Box sx={{ px: 2, py: 1, backgroundColor: 'rgba(0, 0, 0, 0.04)', mb: 1 }}>
+                <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
+                  Department: {oktaUserData[0].profile.department}
+                </Typography>
+              </Box>
+            )}
+            
             {/* User Management */}
             <ListItemButton
               onClick={() => toggleCollapse('userManagement')}
@@ -156,6 +203,10 @@ const Navbar = () => {
                   <ListItemIcon><AssignmentIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Docusign Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
+                <ListItemButton component={Link} to="/googlecalendars" id="google-calendars-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><CalendarTodayIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Google Calendars" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
                 <ListItemButton component={Link} to="/googleusers" id="google-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Google Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -188,7 +239,7 @@ const Navbar = () => {
                 </ListItemButton>
 
                 {/* Keep Add Okta User at the end, after all the display items */}
-                {hasAccess(ITEmails) && (
+                {isITDepartment() && (
                   <ListItemButton component={Link} to="/onboardnewuser" id="onboard-user-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                     <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
                     <ListItemText primary="OnBoard New User" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -222,7 +273,7 @@ const Navbar = () => {
                   <ListItemIcon><ListIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Active Self Serve Licenses" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
-                {hasAccess(ITEmails) && (
+                {isITDepartment() && (
                   <ListItemButton component={Link} to="/grantselfservelicenses" id="grant-licenses-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                     <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
                     <ListItemText primary="Grant Licenses" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -260,6 +311,12 @@ const Navbar = () => {
             </ListItemButton>
             <Collapse in={!collapsed.infrastructure} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
+                {isITDepartment() && (
+                  <ListItemButton component={Link} to="/dashboard" id="dashboard-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><DashboardIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Assignment Dashboard" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                )}
                 <ListItemButton component={Link} to="/vmwarehosts" id="vmwarehosts-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ServerIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="VMWare Hosts" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -268,6 +325,18 @@ const Navbar = () => {
                   <ListItemIcon><AppleIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="JAMF Machine Info" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
+                {isITDepartment() && (
+                  <ListItemButton component={Link} to="/rendermanagement" id="render-management-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><CloudQueueIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Render Management" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                )}
+                {isITDepartment() && (
+                  <ListItemButton component={Link} to="/assignworkstations" id="assign-workstations-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Assign Workstations" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                )}
                 <ListItemButton component={Link} to="/ldapmachineinfo" id="ldapmachineinfo-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><LaptopIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="LDAP Machine Info" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -280,7 +349,7 @@ const Navbar = () => {
                   <ListItemIcon><StorageIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Physical Drives" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
-                {hasAccess(ITEmails) && (
+                {isITDepartment() && (
                   <ListItemButton component={Link} to="/reboot" id="reboot-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                     <ListItemIcon><RestartAltIcon fontSize="small" /></ListItemIcon>
                     <ListItemText primary="Reboot Machines" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -303,20 +372,20 @@ const Navbar = () => {
                 <StorageIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText
-                primary="Storage"
+                primary="Storage Information"
                 slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
               />
               {collapsed.storage ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
             </ListItemButton>
             <Collapse in={!collapsed.storage} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
+                <ListItemButton component={Link} to="/awscounts" id="aws-counts-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><CloudQueueIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="AWS File Counts" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
                 <ListItemButton component={Link} to="/hammerspaceobjectives" id="hammerspace-objectives-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><FlagIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Hammerspace Objectives" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
-                <ListItemButton component={Link} to="/hammerspaceprojects" id="hammerspace-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><FolderIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Hammerspace Projects" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/hammerspaceshares" id="hammerspace-shares-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
@@ -338,6 +407,10 @@ const Navbar = () => {
                   <ListItemIcon><DashboardIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Hammerspace Data Portals" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
+                {/* <ListItemButton component={Link} to="/hammerspaceencrypt" id="hammerspace-encrypt-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><LockIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Hammerspace Encryption" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton> */}
                 <ListItemButton component={Link} to="/hammerspacesysteminfo" id="hammerspace-system-info-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Hammerspace System Info" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -349,6 +422,46 @@ const Navbar = () => {
                 <ListItemButton component={Link} to="/projectsizes" id="project-sizes-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><TableChartIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Project Sizes" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+              </List>
+            </Collapse>
+
+            {/* Storage Management */}
+            <ListItemButton
+              onClick={() => toggleCollapse('storageManagement')}
+              sx={{
+                py: 0.5,
+                minHeight: 36,
+                fontSize: '0.875rem',
+                '& .MuiListItemIcon-root': { minWidth: 32 }
+              }}
+            >
+              <ListItemIcon>
+                <FolderIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary="Project Backups"
+                slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+              />
+              {collapsed.storageManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+            </ListItemButton>
+            <Collapse in={!collapsed.storageManagement} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                <ListItemButton component={Link} to="/hammerspaceprojects" id="hammerspace-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><FolderIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Hammerspace -> S3" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/s3copystatus" id="s3-copy-status-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><CloudQueueIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="S3 Copy Status" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/nasprojects" id="nas-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><StorageIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="NAS -> S3" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/awsrestore" id="aws-restore-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><RestartAltIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="AWS Restore" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
               </List>
             </Collapse>

@@ -205,21 +205,19 @@ export default function HammerSpaceSystemHealth() {
     // Calculate health status counts
     const healthCounts = healthItems.reduce((counts, item) => {
         const healthStatus = getHealthStatus(item.status, item.value, item.threshold, item);
-        const isDegraded = healthStatus.color === 'warning' || healthStatus.color === 'error';
-        const isHealthy = healthStatus.color === 'success' || (!isDegraded && (healthStatus.text === '' || healthStatus.text === 'Healthy'));
         
-        if (isHealthy) {
-            counts.healthy++;
-        } else if (healthStatus.color === 'error') {
-            counts.critical++;
+        if (healthStatus.color === 'success') {
+            counts.ok++;
         } else if (healthStatus.color === 'warning') {
-            counts.warning++;
+            counts.degraded++;
+        } else if (healthStatus.color === 'error') {
+            counts.failed++;
         } else {
             counts.unknown++;
         }
         
         return counts;
-    }, { healthy: 0, warning: 0, critical: 0, unknown: 0 });
+    }, { ok: 0, degraded: 0, failed: 0, unknown: 0 });
 
     return (
         <Box>
@@ -229,24 +227,24 @@ export default function HammerSpaceSystemHealth() {
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <Chip 
-                        label={`${healthCounts.healthy} Healthy`}
+                        label={`${healthCounts.ok} OK`}
                         color="success"
                         size="small"
                         icon={<CheckCircleIcon />}
                         sx={{ fontWeight: 'medium' }}
                     />
-                    {healthCounts.warning > 0 && (
+                    {healthCounts.degraded > 0 && (
                         <Chip 
-                            label={`${healthCounts.warning} Warning`}
+                            label={`${healthCounts.degraded} Degraded`}
                             color="warning"
                             size="small"
                             icon={<WarningIcon />}
                             sx={{ fontWeight: 'medium' }}
                         />
                     )}
-                    {healthCounts.critical > 0 && (
+                    {healthCounts.failed > 0 && (
                         <Chip 
-                            label={`${healthCounts.critical} Critical`}
+                            label={`${healthCounts.failed} Failed`}
                             color="error"
                             size="small"
                             icon={<ErrorIcon />}
@@ -280,10 +278,9 @@ export default function HammerSpaceSystemHealth() {
                     {healthItems.map((item, index) => {
                         const itemId = item.id || index;
                         const healthStatus = getHealthStatus(item.status, item.value, item.threshold, item);
-                        const isDegraded = healthStatus.color === 'warning' || healthStatus.color === 'error';
-                        const isHealthy = healthStatus.color === 'success' || (!isDegraded && (healthStatus.text === '' || healthStatus.text === 'Healthy'));
-                        const isWarning = healthStatus.color === 'warning';
-                        const isError = healthStatus.color === 'error';
+                        const isOk = healthStatus.color === 'success';
+                        const isDegraded = healthStatus.color === 'warning';
+                        const isFailed = healthStatus.color === 'error';
                         
                         return (
                             <Grid item size={6} key={itemId}>
@@ -292,8 +289,8 @@ export default function HammerSpaceSystemHealth() {
                                     sx={{ 
                                         p: 1, 
                                         mb: 0.5,
-                                        backgroundColor: isHealthy ? 'success.light' : (isWarning ? 'warning.light' : (isError ? 'error.light' : 'background.paper')),
-                                        border: `1px solid ${isHealthy ? 'success.main' : (isWarning ? 'warning.main' : (isError ? 'error.main' : 'divider'))}`,
+                                        backgroundColor: isOk ? 'success.light' : (isDegraded ? 'warning.light' : (isFailed ? 'error.light' : 'background.paper')),
+                                        border: `1px solid ${isOk ? 'success.main' : (isDegraded ? 'warning.main' : (isFailed ? 'error.main' : 'divider'))}`,
                                         '&:hover': {
                                             elevation: 2
                                         }
@@ -306,7 +303,7 @@ export default function HammerSpaceSystemHealth() {
                                             fontWeight: 'medium', 
                                             flexGrow: 1, 
                                             fontSize: '0.8rem',
-                                            color: isHealthy ? 'success.dark' : (isWarning ? 'warning.dark' : (isError ? 'error.dark' : 'text.primary'))
+                                            color: isOk ? 'success.dark' : (isDegraded ? 'warning.dark' : (isFailed ? 'error.dark' : 'text.primary'))
                                         }}>
                                             {item.name}
                                         </Typography>
@@ -343,31 +340,62 @@ export default function HammerSpaceSystemHealth() {
                                         />
                                     )}
                                     
-                                    {/* Ultra compact metrics - only show most important ones */}
+                                    {/* Display OK/Degraded/Failed counts if available */}
                                     <Box sx={{ display: 'flex', gap: 0.25, flexWrap: 'wrap', mb: 0.5 }}>
-                                        {item.uptime && (
-                                            <Chip 
-                                                label={ensureValidLabel(`${item.uptime}`)}
-                                                variant="outlined"
-                                                size="small"
-                                                sx={{ fontSize: '0.6rem', height: 16, '& .MuiChip-label': { px: 0.5 } }}
-                                            />
-                                        )}
-                                        {item.responseTime && (
-                                            <Chip 
-                                                label={ensureValidLabel(`${item.responseTime}ms`)}
-                                                variant="outlined"
-                                                size="small"
-                                                sx={{ fontSize: '0.6rem', height: 16, '& .MuiChip-label': { px: 0.5 } }}
-                                            />
-                                        )}
-                                        {item.availability && (
-                                            <Chip 
-                                                label={ensureValidLabel(`${formatPercentage(item.availability)}`)}
-                                                variant="outlined"
-                                                size="small"
-                                                sx={{ fontSize: '0.6rem', height: 16, '& .MuiChip-label': { px: 0.5 } }}
-                                            />
+                                        {(item.ok !== undefined || item.degraded !== undefined || item.failed !== undefined) ? (
+                                            <>
+                                                {item.ok !== undefined && (
+                                                    <Chip 
+                                                        label={`${item.ok} OK`}
+                                                        color="success"
+                                                        size="small"
+                                                        sx={{ fontSize: '0.6rem', height: 18, '& .MuiChip-label': { px: 0.5 } }}
+                                                    />
+                                                )}
+                                                {item.degraded !== undefined && item.degraded > 0 && (
+                                                    <Chip 
+                                                        label={`${item.degraded} Degraded`}
+                                                        color="warning"
+                                                        size="small"
+                                                        sx={{ fontSize: '0.6rem', height: 18, '& .MuiChip-label': { px: 0.5 } }}
+                                                    />
+                                                )}
+                                                {item.failed !== undefined && item.failed > 0 && (
+                                                    <Chip 
+                                                        label={`${item.failed} Failed`}
+                                                        color="error"
+                                                        size="small"
+                                                        sx={{ fontSize: '0.6rem', height: 18, '& .MuiChip-label': { px: 0.5 } }}
+                                                    />
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                {item.uptime && (
+                                                    <Chip 
+                                                        label={ensureValidLabel(`${item.uptime}`)}
+                                                        variant="outlined"
+                                                        size="small"
+                                                        sx={{ fontSize: '0.6rem', height: 16, '& .MuiChip-label': { px: 0.5 } }}
+                                                    />
+                                                )}
+                                                {item.responseTime && (
+                                                    <Chip 
+                                                        label={ensureValidLabel(`${item.responseTime}ms`)}
+                                                        variant="outlined"
+                                                        size="small"
+                                                        sx={{ fontSize: '0.6rem', height: 16, '& .MuiChip-label': { px: 0.5 } }}
+                                                    />
+                                                )}
+                                                {item.availability && (
+                                                    <Chip 
+                                                        label={ensureValidLabel(`${formatPercentage(item.availability)}`)}
+                                                        variant="outlined"
+                                                        size="small"
+                                                        sx={{ fontSize: '0.6rem', height: 16, '& .MuiChip-label': { px: 0.5 } }}
+                                                    />
+                                                )}
+                                            </>
                                         )}
                                     </Box>
                                     

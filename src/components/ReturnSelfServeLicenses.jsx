@@ -1,4 +1,4 @@
-import { Alert, AlertTitle, Divider, IconButton,  Chip } from '@mui/material';
+import { Alert, AlertTitle, Divider, IconButton, Chip, Grid, Snackbar } from '@mui/material';
 import { useState } from 'react';
 import { useQueries } from "@tanstack/react-query";
 import CloseIcon from '@mui/icons-material/Close';
@@ -158,92 +158,127 @@ export default function ReturnSelfServeLicenses(props) {
             <Button onClick={clearFilter} size="small" variant="contained">Clear Filter</Button>
             </p>
             <Box sx={{ margin: 2 }}>
+                {/* Header Row */}
+                <Grid container spacing={2} sx={{ mb: 2, p: 1, bgcolor: 'rgba(0, 0, 0, 0.04)', borderRadius: 1 }}>
+                  <Grid size={3}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      Name
+                    </Typography>
+                  </Grid>
+                  <Grid size={3}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      Email
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                      Products to Return
+                    </Typography>
+                  </Grid>
+                </Grid>
+                
                 {filteredData.map((item) => {
-                    return <div key={myid+item.profile.login}>
-                      <Divider sx={{ margin: 1 }}>{item.profile.displayName ? item.profile.displayName : ''} {item.profile.login ? item.profile.login : ''} </Divider>
-                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-                                  <Chip 
-                                    label="Adobe" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'Adobe')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="Acrobat" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'Acrobat')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="Aquarium" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'Aquarium')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="Maya" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'Maya')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="Substance" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'Substance')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="Parsec" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'Parsec')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="Office" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'MSO365')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="Figma" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'Figma')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="Figjam" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'Figjam')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                  <Chip 
-                                    label="FigmaFigjam" 
-                                    onClick={(e) => {releaseLicense(e, item.profile.login, 'FigmaFigjam')}} 
-                                    clickable 
-                                    color="primary" 
-                                    size="small"
-                                    sx={{ fontSize: '0.75rem' }}
-                                  />
-                                </Box>
-                           </div>
+                    return <Grid container spacing={2} key={myid+item.profile.login} sx={{ alignItems: 'center', mb: 2, p: 1, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                      {/* Name Column */}
+                      <Grid size={3}>
+                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                          {item.profile.displayName ? item.profile.displayName : ''}
+                        </Typography>
+                      </Grid>
+                      
+                      {/* Email Column */}
+                      <Grid size={3}>
+                        <Typography variant="body2" color="text.secondary">
+                          {item.profile.login ? item.profile.login : ''}
+                        </Typography>
+                      </Grid>
+                      
+                      {/* Products Column */}
+                      <Grid size={6}>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          <Chip 
+                            label="Adobe" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Adobe')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="Acrobat" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Acrobat')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="Aquarium" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Aquarium')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="Maya" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Maya')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="Substance" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Substance')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="Parsec" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Parsec')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="Office" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'MSO365')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="Figma" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Figma')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="Figjam" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Figjam')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                          <Chip 
+                            label="FigmaFigjam" 
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'FigmaFigjam')}} 
+                            clickable 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontSize: '0.75rem' }}
+                          />
+                        </Box>
+                      </Grid>
+                    </Grid>
                 })}
                 </Box>
             </>

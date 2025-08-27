@@ -4,7 +4,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Avatar, Chip, Tooltip, TextField, InputAdornment, Switch, FormControlLabel,
   Select, MenuItem, InputLabel, FormControl, Grid, Card, CardContent, Divider,
-  Stack, LinearProgress
+  Stack, LinearProgress, IconButton, Collapse
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PeopleIcon from '@mui/icons-material/People';
@@ -14,6 +14,8 @@ import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import WorkIcon from '@mui/icons-material/Work';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PauseCircleFilledIcon from '@mui/icons-material/PauseCircleFilled';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useOktaAuth } from '@okta/okta-react';
 import { useApiGet, useProtectedApiGet } from '../hooks/useApi';
 
@@ -23,6 +25,7 @@ export default function OktaUsers(props) {
   const [showOnlyWithPhotos, setShowOnlyWithPhotos] = useState(false);
   const [statusFilter, setStatusFilter] = useState(''); // Options: '' (all), 'ACTIVE', 'STAGED', etc.
   const [showOnlyFreelancers, setShowOnlyFreelancers] = useState(false);
+  const [expandedUsers, setExpandedUsers] = useState(new Set());
   
   console.log("OktaUsers render - Auth state:", authState?.isAuthenticated);
 
@@ -159,6 +162,17 @@ export default function OktaUsers(props) {
     } else {
       return 'U';
     }
+  };
+
+  // Toggle expand state for a user
+  const toggleUserExpansion = (userId) => {
+    const newExpandedUsers = new Set(expandedUsers);
+    if (newExpandedUsers.has(userId)) {
+      newExpandedUsers.delete(userId);
+    } else {
+      newExpandedUsers.add(userId);
+    }
+    setExpandedUsers(newExpandedUsers);
   };
 
   // Determine loading state
@@ -385,7 +399,7 @@ export default function OktaUsers(props) {
                             cursor: 'pointer',
                             p: 0.25,
                             borderRadius: 1,
-                            bgcolor: statusFilter === status ? 'rgba(0,0,0,0.05)' : 'transparent',
+                            bgcolor: statusFilter === status ? 'rgba(0,0,0,0.05)' : 'white',
                             '&:hover': { bgcolor: 'rgba(0,0,0,0.08)' }
                           }}
                           onClick={() => setStatusFilter(statusFilter === status ? '' : status)}
@@ -604,96 +618,135 @@ export default function OktaUsers(props) {
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell width="60">Details</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredUsers.map((user) => {
                 const googleUser = getGoogleUserForOktaUser(user);
                 const isActive = user.status === 'ACTIVE';
+                const userId = user.id || user.profile?.login;
+                const isExpanded = expandedUsers.has(userId);
                 
                 return (
-                  <TableRow key={user.id || user.profile?.login}>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {googleUser?.thumbnailPhotoUrl ? (
-                          <Tooltip title={
-                            (googleUser.organizations && 
-                             googleUser.organizations[0]?.costCenter && 
-                             googleUser.organizations[0].costCenter.toLowerCase() === 'freelance') 
-                              ? 'Freelancer - Google profile photo' 
-                              : 'Google profile photo'
-                          }>
-                            <Avatar
-                              src={googleUser.thumbnailPhotoUrl}
-                              alt={getUserInitials(user)}
-                              sx={{
-                                width: 32,
-                                height: 32,
-                                border: (googleUser.organizations &&
-                                        googleUser.organizations[0]?.costCenter &&
-                                        googleUser.organizations[0].costCenter.toLowerCase() === 'freelance')
-                                  ? '2px solid #f50057'
-                                  : '2px solid #8c9eff',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  <React.Fragment key={userId}>
+                    <TableRow>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {googleUser?.thumbnailPhotoUrl ? (
+                            <Tooltip title={
+                              (googleUser.organizations && 
+                               googleUser.organizations[0]?.costCenter && 
+                               googleUser.organizations[0].costCenter.toLowerCase() === 'freelance') 
+                                ? 'Freelancer - Google profile photo' 
+                                : 'Google profile photo'
+                            }>
+                              <Avatar
+                                src={googleUser.thumbnailPhotoUrl}
+                                alt={getUserInitials(user)}
+                                sx={{
+                                  width: 32,
+                                  height: 32,
+                                  border: (googleUser.organizations &&
+                                          googleUser.organizations[0]?.costCenter &&
+                                          googleUser.organizations[0].costCenter.toLowerCase() === 'freelance')
+                                    ? '2px solid #f50057'
+                                    : '2px solid #8c9eff',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                  bgcolor: isActive ? 'primary.main' : 'text.disabled',
+                                  color: 'white',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 'bold',
+                                  '& img': {
+                                    loading: 'lazy'
+                                  }
+                                }}
+                                onError={() => {
+                                  console.log("Image failed to load for:", user.profile?.email);
+                                }}
+                              >
+                                {getUserInitials(user)}
+                              </Avatar>
+                            </Tooltip>
+                          ) : (
+                            <Avatar 
+                              sx={{ 
                                 bgcolor: isActive ? 'primary.main' : 'text.disabled',
                                 color: 'white',
+                                width: 32, 
+                                height: 32,
                                 fontSize: '0.8rem',
                                 fontWeight: 'bold',
-                                '& img': {
-                                  loading: 'lazy'
-                                }
-                              }}
-                              onError={() => {
-                                console.log("Image failed to load for:", user.profile?.email);
+                                border: '2px solid #8c9eff',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                               }}
                             >
                               {getUserInitials(user)}
                             </Avatar>
-                          </Tooltip>
-                        ) : (
-                          <Avatar 
-                            sx={{ 
-                              bgcolor: isActive ? 'primary.main' : 'text.disabled',
-                              color: 'white',
-                              width: 32, 
-                              height: 32,
-                              fontSize: '0.8rem',
-                              fontWeight: 'bold',
-                              border: '2px solid #8c9eff',
-                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                            }}
-                          >
-                            {getUserInitials(user)}
-                          </Avatar>
-                        )}
-                        <Box>
-                          {user.profile?.displayName || 
-                            `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`}
-                          {(googleUser && 
-                           googleUser.organizations && 
-                           googleUser.organizations[0]?.costCenter && 
-                           googleUser.organizations[0].costCenter.toLowerCase() === 'freelance') && (
-                            <Chip 
-                              label="Freelance" 
-                              size="small" 
-                              color="error" 
-                              variant="outlined"
-                              sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
-                            />
                           )}
+                          <Box>
+                            {user.profile?.displayName || 
+                              `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`}
+                            {(googleUser && 
+                             googleUser.organizations && 
+                             googleUser.organizations[0]?.costCenter && 
+                             googleUser.organizations[0].costCenter.toLowerCase() === 'freelance') && (
+                              <Chip 
+                                label="Freelance" 
+                                size="small" 
+                                color="error" 
+                                variant="outlined"
+                                sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                              />
+                            )}
+                          </Box>
                         </Box>
-                      </Box>
-                    </TableCell>
-                    <TableCell>{user.profile?.email || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={user.status || 'Unknown'} 
-                        color={isActive ? 'success' : 'default'} 
-                        size="small"
-                        variant={isActive ? 'filled' : 'outlined'}
-                      />
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                      <TableCell>{user.profile?.email || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={user.status || 'Unknown'} 
+                          color={isActive ? 'success' : 'default'} 
+                          size="small"
+                          variant={isActive ? 'filled' : 'outlined'}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <IconButton
+                          size="small"
+                          onClick={() => toggleUserExpansion(userId)}
+                          aria-label={isExpanded ? 'Hide details' : 'Show details'}
+                        >
+                          {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={4}>
+                        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                          <Box sx={{ margin: 1, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                            <Typography variant="h6" gutterBottom component="div">
+                              Raw User Data
+                            </Typography>
+                            <Box sx={{ 
+                              bgcolor: 'grey.900', 
+                              color: 'white', 
+                              p: 2, 
+                              borderRadius: 1, 
+                              overflow: 'auto',
+                              maxHeight: 400,
+                              fontFamily: 'monospace',
+                              fontSize: '0.875rem'
+                            }}>
+                              <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                                {JSON.stringify(user, null, 2)}
+                              </pre>
+                            </Box>
+                          </Box>
+                        </Collapse>
+                      </TableCell>
+                    </TableRow>
+                  </React.Fragment>
                 );
               })}
             </TableBody>

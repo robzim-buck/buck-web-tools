@@ -42,7 +42,7 @@ const App = () => {
           left: 0,
           top: 0,
           zIndex: 100,
-          backgroundColor: 'transparent'
+          backgroundColor: 'white'
         }}>
           <Box sx={{ height: '100vh', overflowY: 'auto' }}>
             <Navbar />
@@ -55,7 +55,7 @@ const App = () => {
           p: 3, 
           height: '100vh',
           overflowY: 'auto',
-          backgroundColor: 'transparent'
+          backgroundColor: 'white'
         }}>
           <AppRoutes />
         </Box>

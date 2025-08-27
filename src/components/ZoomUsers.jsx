@@ -3,9 +3,12 @@ import {
   Typography, Container, Paper, Box, CircularProgress, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Avatar, Chip, TextField, InputAdornment, FormControl, 
-  Select, MenuItem, InputLabel, TableSortLabel, FormControlLabel, Switch
+  Select, MenuItem, InputLabel, TableSortLabel, FormControlLabel, Switch,
+  Button, Dialog, DialogTitle, DialogContent, DialogActions, IconButton
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import { useOktaAuth } from '@okta/okta-react';
 import { useQuery } from '@tanstack/react-query';
 // Add global style to fix webkit-text-size-adjust error
@@ -27,6 +30,8 @@ export default function ZoomUsers(props) {
   const [userTypeFilter, setUserTypeFilter] = useState(''); // Options: '' (all), 'Basic', 'Licensed', 'On-Prem'
   const [order, setOrder] = useState('asc');
   const [orderBy, setOrderBy] = useState('email');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   
   console.log("ZoomUsers render - Auth state:", authState?.isAuthenticated);
 
@@ -296,6 +301,17 @@ export default function ZoomUsers(props) {
     }
   }, [zoomUsersData, searchTerm, userTypeFilter, showOnlyWithPhotos]);
 
+  // Handler functions for details dialog
+  const handleShowDetails = (user) => {
+    setSelectedUser(user);
+    setDetailsDialogOpen(true);
+  };
+
+  const handleCloseDetails = () => {
+    setDetailsDialogOpen(false);
+    setSelectedUser(null);
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -503,6 +519,7 @@ export default function ZoomUsers(props) {
                   Status {orderBy === 'status' ? (order === 'asc' ? '↑' : '↓') : ''}
                 </TableSortLabel>
               </TableCell>
+              <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -589,6 +606,17 @@ export default function ZoomUsers(props) {
                       variant={isActive ? 'filled' : 'outlined'}
                     />
                   </TableCell>
+                  <TableCell align="center">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<InfoOutlinedIcon />}
+                      onClick={() => handleShowDetails(user)}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Show Details
+                    </Button>
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -609,6 +637,52 @@ export default function ZoomUsers(props) {
           </Typography>
         </Box>
       </TableContainer>
+      
+      {/* Details Dialog */}
+      <Dialog
+        open={detailsDialogOpen}
+        onClose={handleCloseDetails}
+        maxWidth="md"
+        fullWidth
+        sx={{
+          '& .MuiDialog-paper': {
+            minHeight: '60vh',
+            maxHeight: '90vh'
+          }
+        }}
+      >
+        <DialogTitle sx={{ bgcolor: 'white' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">
+              User Details: {selectedUser?.display_name || selectedUser?.email || 'Unknown User'}
+            </Typography>
+            <IconButton onClick={handleCloseDetails} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Paper
+            sx={{
+              p: 2,
+              bgcolor: '#f5f5f5',
+              fontFamily: 'monospace',
+              fontSize: '14px',
+              overflow: 'auto',
+              maxHeight: '70vh'
+            }}
+          >
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {selectedUser ? JSON.stringify(selectedUser, null, 2) : '{}'}
+            </pre>
+          </Paper>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDetails} variant="contained">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
