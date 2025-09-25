@@ -70,8 +70,6 @@ const AWSCounts = lazy(() => import('./AWSCounts'));
 const AWSRestore = lazy(() => import('./AWSRestore'));
 const RenderManagement = lazy(() => import('./RenderManagement'));
 const AssignWorkstations = lazy(() => import('./AssignWorkstations'));
-const Dashboard = lazy(() => import('./Dashboard'));
-const DashboardLayoutWrapper = lazy(() => import('./DashboardLayoutWrapper'));
 
 
 const allowedEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co"
@@ -342,17 +340,6 @@ const AppRoutes = () => {
         }/>
       </Route>
 
-      <Route path="/dashboard" element={<RequiredAuth/>}>
-        <Route path="" element={
-          <Suspense fallback={<LoadingFallback />}><Dashboard /></Suspense>
-        }/>
-      </Route>
-
-      <Route path="/dashboardlayout" element={<RequiredAuth/>}>
-        <Route path="" element={
-          <Suspense fallback={<LoadingFallback />}><DashboardLayoutWrapper /></Suspense>
-        }/>
-      </Route>
 
 
       <Route path="/parsecusers" element={<RequiredAuth/>}>

@@ -123,8 +123,8 @@ export default function AWSRestore({ name = "AWS Project Restore" }) {
     
     try {
       const result = await restoreMutation.mutateAsync({
-        endpoint: '/aws/buck_global_archive_project_restore',
-        params: { folder: projectName },
+        endpoint: '/utils/celery_restore_from_glacier',
+        params: { project: projectName },
         projectName
       });
       console.log('Restore API result:', result);
@@ -142,10 +142,16 @@ export default function AWSRestore({ name = "AWS Project Restore" }) {
     console.log('Tier button clicked for project:', projectName);
     setProcessingProjects(prev => new Set(prev).add(projectName));
     
+    setSnackbar({
+      open: true,
+      message: 'Wait 15 seconds while we send this task to celery. Check http://amscoresrv.buck.local:5555/tasks for the task status.',
+      severity: 'info'
+    });
+    
     try {
       const result = await tierMutation.mutateAsync({
-        endpoint: '/aws/buck_global_archive_project_tier',
-        params: { folder: projectName },
+        endpoint: '/utils/celery_s3_tier',
+        params: { project: projectName },
         projectName
       });
       console.log('Tier API result:', result);

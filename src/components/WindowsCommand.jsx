@@ -488,7 +488,7 @@ export default function WindowsCommand(props) {
                 {windowsCommandQuery.data && !windowsCommandQuery.isLoading && (
                     <Box sx={{ mt: 3 }}>
                         <Typography variant="h5" sx={{ mb: 2 }}>
-                            Command Results for {hostName}
+                            Command Results for {hostName}n
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                             Command: {commandToExecute}

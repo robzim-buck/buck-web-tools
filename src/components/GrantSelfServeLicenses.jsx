@@ -1,8 +1,8 @@
 import { Alert, AlertTitle, Divider, IconButton, Snackbar, Chip, Grid } from '@mui/material';
-import { useState } from 'react';
-import { useQueries } from "@tanstack/react-query";
+import { useState, useMemo } from 'react';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckIcon from '@mui/icons-material/Check';
+import { useProtectedApiGet } from '../hooks/useApi';
 
 import Button from '@mui/material/Button'
 import { Typography } from '@mui/material';
@@ -10,9 +10,7 @@ import { Box } from '@mui/material';
 import uuid from 'react-uuid';
 import CircularProgress from '@mui/material/CircularProgress';
 
-// const endpoint = 'http://core-tools.buck.local:7000'
 const endpoint = 'https://laxcoresrv.buck.local:8000'
-// const endpoint = 'http://10.20.18.159:8000'
 
 
 export default function GrantSelfServeLicenses(props) {
@@ -111,24 +109,46 @@ export default function GrantSelfServeLicenses(props) {
     
   const [filter, setFilter] = useState('');
 
-    const [oktausers] = useQueries({
-        queries: [
-          {
-            queryKey: ["oktausers"],
-            queryFn: () =>
-            fetch(`${endpoint}/buckokta/category/att/comparison/match?_category=users`,
-              {
-              method: 'GET',
-              mode: 'cors',
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-              }
-            }).then((res) => res.json()),
-        },
-        ]
+    // Fetch all Okta users by status like OktaUsers.jsx does
+    const oktaActiveUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+        queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'ACTIVE' },
+        queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+        dependencies: ['ACTIVE']
     });
+
+    const oktaStagedUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+        queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'STAGED' },
+        queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+        dependencies: ['STAGED']
+    });
+
+    const oktaProvisionedUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+        queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'PROVISIONED' },
+        queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+        dependencies: ['PROVISIONED']
+    });
+
+    // Combine all Okta user queries like OktaUsers.jsx
+    const oktausers = useMemo(() => {
+        const queries = [oktaActiveUsersQuery, oktaStagedUsersQuery, oktaProvisionedUsersQuery];
+        
+        const isLoading = queries.some(q => q.isLoading);
+        const error = queries.find(q => q.error)?.error || null;
+        
+        // Combine all data arrays
+        const data = queries.reduce((acc, query) => {
+            if (query.data && Array.isArray(query.data)) {
+                return [...acc, ...query.data];
+            }
+            return acc;
+        }, []);
+        
+        return { isLoading, error, data };
+    }, [
+        oktaActiveUsersQuery.isLoading, oktaActiveUsersQuery.error, oktaActiveUsersQuery.data,
+        oktaStagedUsersQuery.isLoading, oktaStagedUsersQuery.error, oktaStagedUsersQuery.data,
+        oktaProvisionedUsersQuery.isLoading, oktaProvisionedUsersQuery.error, oktaProvisionedUsersQuery.data
+    ]);
       if (oktausers.isLoading) return <CircularProgress></CircularProgress>;
       if (oktausers.error) return "An error has occurred: " + oktausers.error.message;
       if (oktausers.data) {

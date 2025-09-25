@@ -4,7 +4,7 @@ import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Avatar, Chip, Tooltip, TextField, InputAdornment, Switch, FormControlLabel,
   Select, MenuItem, InputLabel, FormControl, Grid, Card, CardContent, Divider,
-  Stack, LinearProgress, IconButton, Collapse
+  Stack, LinearProgress, IconButton, Collapse, Button, ButtonGroup, Snackbar
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PeopleIcon from '@mui/icons-material/People';
@@ -16,6 +16,9 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PauseCircleFilledIcon from '@mui/icons-material/PauseCircleFilled';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import StopIcon from '@mui/icons-material/Stop';
 import { useOktaAuth } from '@okta/okta-react';
 import { useApiGet, useProtectedApiGet } from '../hooks/useApi';
 
@@ -26,18 +29,54 @@ export default function OktaUsers(props) {
   const [statusFilter, setStatusFilter] = useState(''); // Options: '' (all), 'ACTIVE', 'STAGED', etc.
   const [showOnlyFreelancers, setShowOnlyFreelancers] = useState(false);
   const [expandedUsers, setExpandedUsers] = useState(new Set());
+  const [alertInfo, setAlertInfo] = useState({ open: false, message: '', severity: 'info' });
   
   console.log("OktaUsers render - Auth state:", authState?.isAuthenticated);
 
-  // Fetch Okta users with React Query
-  const oktaUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
-    queryParams: { _category: 'users' },
-    queryConfig: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false,
-      retry: 2,
-      retryDelay: 1000
-    }
+  // Define statuses to fetch
+  const statusesToFetch = ['ACTIVE', 'STAGED', 'PROVISIONED', 'RECOVERY', 'PASSWORD_EXPIRED', 'LOCKED_OUT', 'SUSPENDED'];
+  
+  // Create queries for each status
+  const oktaActiveUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'ACTIVE' },
+    queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+    dependencies: ['ACTIVE']
+  });
+  
+  const oktaStagedUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'STAGED' },
+    queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+    dependencies: ['STAGED']
+  });
+  
+  const oktaProvisionedUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'PROVISIONED' },
+    queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+    dependencies: ['PROVISIONED']
+  });
+  
+  const oktaRecoveryUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'RECOVERY' },
+    queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+    dependencies: ['RECOVERY']
+  });
+  
+  const oktaPasswordExpiredUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'PASSWORD_EXPIRED' },
+    queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+    dependencies: ['PASSWORD_EXPIRED']
+  });
+  
+  const oktaLockedOutUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'LOCKED_OUT' },
+    queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+    dependencies: ['LOCKED_OUT']
+  });
+  
+  const oktaSuspendedUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'SUSPENDED' },
+    queryConfig: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false, retry: 2, retryDelay: 1000 },
+    dependencies: ['SUSPENDED']
   });
 
   // Fetch Google staff users with React Query
@@ -65,6 +104,42 @@ export default function OktaUsers(props) {
     },
     dependencies: ['freelance'] // Add to query key to differentiate from staff query
   });
+
+  // Combine all Okta user queries
+  const oktaUsersQuery = useMemo(() => {
+    const queries = [
+      oktaActiveUsersQuery,
+      oktaStagedUsersQuery, 
+      oktaProvisionedUsersQuery,
+      oktaRecoveryUsersQuery,
+      oktaPasswordExpiredUsersQuery,
+      oktaLockedOutUsersQuery,
+      oktaSuspendedUsersQuery
+    ];
+    
+    const isLoading = queries.some(q => q.isLoading);
+    const error = queries.find(q => q.error)?.error || null;
+    
+    // Combine all data arrays
+    const data = queries.reduce((acc, query) => {
+      if (query.data && Array.isArray(query.data)) {
+        return [...acc, ...query.data];
+      }
+      return acc;
+    }, []);
+    
+    console.log("Combined Okta users:", data.length);
+    
+    return { isLoading, error, data };
+  }, [
+    oktaActiveUsersQuery.isLoading, oktaActiveUsersQuery.error, oktaActiveUsersQuery.data,
+    oktaStagedUsersQuery.isLoading, oktaStagedUsersQuery.error, oktaStagedUsersQuery.data,
+    oktaProvisionedUsersQuery.isLoading, oktaProvisionedUsersQuery.error, oktaProvisionedUsersQuery.data,
+    oktaRecoveryUsersQuery.isLoading, oktaRecoveryUsersQuery.error, oktaRecoveryUsersQuery.data,
+    oktaPasswordExpiredUsersQuery.isLoading, oktaPasswordExpiredUsersQuery.error, oktaPasswordExpiredUsersQuery.data,
+    oktaLockedOutUsersQuery.isLoading, oktaLockedOutUsersQuery.error, oktaLockedOutUsersQuery.data,
+    oktaSuspendedUsersQuery.isLoading, oktaSuspendedUsersQuery.error, oktaSuspendedUsersQuery.data
+  ]);
 
   // Combine and process Google users data
   const googleUsers = useMemo(() => {
@@ -175,6 +250,55 @@ export default function OktaUsers(props) {
     setExpandedUsers(newExpandedUsers);
   };
 
+  // Handle user status actions (activate, reactivate, deactivate)
+  const handleUserAction = async (action, userEmail) => {
+    try {
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/${action}/${userEmail}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setAlertInfo({
+          open: true,
+          message: `Successfully ${action}d user ${userEmail}: ${JSON.stringify(data)}`,
+          severity: 'success'
+        });
+        
+        // Refetch all status queries after successful action
+        oktaActiveUsersQuery.refetch();
+        oktaStagedUsersQuery.refetch();
+        oktaProvisionedUsersQuery.refetch();
+        oktaRecoveryUsersQuery.refetch();
+        oktaPasswordExpiredUsersQuery.refetch();
+        oktaLockedOutUsersQuery.refetch();
+        oktaSuspendedUsersQuery.refetch();
+      } else {
+        setAlertInfo({
+          open: true,
+          message: `Failed to ${action} user ${userEmail}: ${data.detail || JSON.stringify(data)}`,
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      setAlertInfo({
+        open: true,
+        message: `Error ${action}ing user ${userEmail}: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  };
+
+  // Close alert
+  const handleCloseAlert = () => {
+    setAlertInfo({ ...alertInfo, open: false });
+  };
+
   // Determine loading state
   const isLoading = oktaUsersQuery.isLoading || 
                     googleStaffUsersQuery.isLoading || 
@@ -182,7 +306,7 @@ export default function OktaUsers(props) {
 
   // Determine error state
   const error = oktaUsersQuery.error ? 
-                "Failed to fetch Okta users" : 
+                `Failed to fetch Okta users: ${oktaUsersQuery.error.message}` : 
                 (googleStaffUsersQuery.error && googleFreelanceUsersQuery.error) ? 
                 "Failed to fetch Google users" : null;
 
@@ -375,7 +499,7 @@ export default function OktaUsers(props) {
               </Typography>
               
               <Grid container spacing={1}>
-                {['ACTIVE', 'STAGED', 'PROVISIONED', 'DEPROVISIONED', 'SUSPENDED', 'RECOVERY', 'PASSWORD_EXPIRED'].map(status => {
+                {['ACTIVE', 'STAGED', 'PROVISIONED', 'DEPROVISIONED', 'SUSPENDED', 'RECOVERY', 'PASSWORD_EXPIRED', 'LOCKED_OUT'].map(status => {
                   const count = oktaUsers.filter(user => user.status === status).length;
                   if (count > 0) {
                     const percentage = Math.round((count / oktaUsers.length) * 100);
@@ -446,7 +570,7 @@ export default function OktaUsers(props) {
             <Divider sx={{ my: 2 }} />
             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.75, flexWrap: 'wrap' }}>
               {/* Status filter chips */}
-              {['ACTIVE', 'STAGED', 'PROVISIONED', 'DEPROVISIONED', 'SUSPENDED', 'RECOVERY', 'PASSWORD_EXPIRED'].map(status => {
+              {['ACTIVE', 'STAGED', 'PROVISIONED', 'DEPROVISIONED', 'SUSPENDED', 'RECOVERY', 'PASSWORD_EXPIRED', 'LOCKED_OUT'].map(status => {
                 const count = oktaUsers.filter(user => user.status === status).length;
                 if (count > 0) {
                   return (
@@ -537,6 +661,7 @@ export default function OktaUsers(props) {
                 <MenuItem value="SUSPENDED">Suspended</MenuItem>
                 <MenuItem value="RECOVERY">Recovery</MenuItem>
                 <MenuItem value="PASSWORD_EXPIRED">Password Expired</MenuItem>
+                <MenuItem value="LOCKED_OUT">Locked Out</MenuItem>
               </Select>
             </FormControl>
             
@@ -618,6 +743,7 @@ export default function OktaUsers(props) {
                 <TableCell>Name</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell>Actions</TableCell>
                 <TableCell width="60">Details</TableCell>
               </TableRow>
             </TableHead>
@@ -712,6 +838,40 @@ export default function OktaUsers(props) {
                         />
                       </TableCell>
                       <TableCell>
+                        <ButtonGroup size="small" variant="contained">
+                          <Tooltip title="Activate user">
+                            <Button 
+                              color="success"
+                              onClick={() => handleUserAction('activate', user.profile?.email)}
+                              disabled={!user.profile?.email}
+                              startIcon={<PlayArrowIcon />}
+                            >
+                              Activate
+                            </Button>
+                          </Tooltip>
+                          <Tooltip title="Reactivate user">
+                            <Button 
+                              color="primary"
+                              onClick={() => handleUserAction('reactivate', user.profile?.email)}
+                              disabled={!user.profile?.email}
+                              startIcon={<RefreshIcon />}
+                            >
+                              Reactivate
+                            </Button>
+                          </Tooltip>
+                          <Tooltip title="Deactivate user">
+                            <Button 
+                              color="error"
+                              onClick={() => handleUserAction('deactivate', user.profile?.email)}
+                              disabled={!user.profile?.email}
+                              startIcon={<StopIcon />}
+                            >
+                              Deactivate
+                            </Button>
+                          </Tooltip>
+                        </ButtonGroup>
+                      </TableCell>
+                      <TableCell>
                         <IconButton
                           size="small"
                           onClick={() => toggleUserExpansion(userId)}
@@ -722,7 +882,7 @@ export default function OktaUsers(props) {
                       </TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={4}>
+                      <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={5}>
                         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                           <Box sx={{ margin: 1, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                             <Typography variant="h6" gutterBottom component="div">
@@ -769,6 +929,22 @@ export default function OktaUsers(props) {
         </TableContainer>
         );
       })()}
+      
+      {/* Alert Snackbar */}
+      <Snackbar
+        open={alertInfo.open}
+        autoHideDuration={6000}
+        onClose={handleCloseAlert}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={handleCloseAlert}
+          severity={alertInfo.severity}
+          sx={{ width: '100%' }}
+        >
+          {alertInfo.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

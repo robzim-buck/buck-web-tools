@@ -11,7 +11,7 @@
  */
 
 import { useOktaAuth } from '@okta/okta-react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useProtectedApiGet } from './hooks/useApi';
 import { 
@@ -24,7 +24,8 @@ import {
   Collapse,
   Typography,
   Paper,
-  Divider
+  Divider,
+  Tooltip
 } from '@mui/material';
 import {
   ChevronRight as ChevronRightIcon,
@@ -72,8 +73,8 @@ import {
 } from '@mui/icons-material';
 
 // Email lists from Routes.jsx
-const allowedEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co";
-const ITEmails = "harry.youngjones@buck.co,mj.hilomen@buck.co,daniel.hernandez@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co,mike.villasana@buck.co";
+const restrictedEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co";
+const ITEmails = "kevin@buck.co,andrew.burnett@buck.co,harry.youngjones@buck.co,mj.hilomen@buck.co,daniel.hernandez@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co,mike.villasana@buck.co";
 
 const Navbar = () => {
   const { authState, oktaAuth } = useOktaAuth();
@@ -87,6 +88,15 @@ const Navbar = () => {
     monitoring: true,
     account: true
   });
+  const [logoSrc, setLogoSrc] = useState('/BUCK_B_Loop.gif');
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLogoSrc('/Buck Square Logo.png');
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const userEmail = authState?.idToken?.claims?.email;
   const { data: oktaUserData } = useProtectedApiGet(
@@ -148,11 +158,11 @@ const Navbar = () => {
   return (
     <Paper elevation={0} sx={{ borderRadius: 0, overflow: 'hidden', height: '100%', boxShadow: 'none', backgroundColor: 'white' }}>
       <Box sx={{ pt: 2, pb: 1, display: 'flex', justifyContent: 'center' }}>
-        <Box 
-          component="img" 
-          src="/Buck Square Logo.png" 
-          alt="Buck Logo" 
-          sx={{ width: '90%', maxHeight: 60, objectFit: 'contain' }}
+        <Box
+          component="img"
+          src={logoSrc}
+          alt="Buck Logo"
+          sx={{ width: '50%', maxHeight: 60, objectFit: 'contain' }}
         />
       </Box>
       <Divider />
@@ -170,24 +180,26 @@ const Navbar = () => {
             )}
             
             {/* User Management */}
-            <ListItemButton
-              onClick={() => toggleCollapse('userManagement')}
-              sx={{
-                py: 0.5,
-                minHeight: 36,
-                fontSize: '0.875rem',
-                '& .MuiListItemIcon-root': { minWidth: 32 }
-              }}
-            >
-              <ListItemIcon>
-                <PersonIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="User Management"
-                slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
-              />
-              {collapsed.userManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-            </ListItemButton>
+            <Tooltip title="Manage users across all platforms including Okta, Google, Adobe, and more" placement="right" arrow>
+              <ListItemButton
+                onClick={() => toggleCollapse('userManagement')}
+                sx={{
+                  py: 0.5,
+                  minHeight: 36,
+                  fontSize: '0.875rem',
+                  '& .MuiListItemIcon-root': { minWidth: 32 }
+                }}
+              >
+                <ListItemIcon>
+                  <PersonIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="User Management"
+                  slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                />
+                {collapsed.userManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </ListItemButton>
+            </Tooltip>
             <Collapse in={!collapsed.userManagement} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 {/* Alphabetically sorted user management items */}
@@ -219,16 +231,18 @@ const Navbar = () => {
                   <ListItemIcon><PeopleIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Okta Groups" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
-                {hasAccess(allowedEmails) && (
+                {hasAccess(restrictedEmails) && (
                   <ListItemButton component={Link} to="/oktalocations" id="okta-locations-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                     <ListItemIcon><LocationOnIcon fontSize="small" /></ListItemIcon>
                     <ListItemText primary="Okta Locations" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                   </ListItemButton>
                 )}
-                <ListItemButton component={Link} to="/oktausers" id="okta-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Okta Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
+                <Tooltip title="View and search all Okta users in the organization" placement="right">
+                  <ListItemButton component={Link} to="/oktausers" id="okta-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Okta Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                </Tooltip>
                 <ListItemButton component={Link} to="/parsecusers" id="parsecusers-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Parsec Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -239,41 +253,47 @@ const Navbar = () => {
                 </ListItemButton>
 
                 {/* Keep Add Okta User at the end, after all the display items */}
-                {isITDepartment() && (
-                  <ListItemButton component={Link} to="/onboardnewuser" id="onboard-user-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                    <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="OnBoard New User" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                  </ListItemButton>
+                {hasAccess(ITEmails) && (
+                  <Tooltip title="Create and onboard a new user to the system" placement="right">
+                    <ListItemButton component={Link} to="/onboardnewuser" id="onboard-user-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="OnBoard New User" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                  </Tooltip>
                 )}
               </List>
             </Collapse>
 
             {/* License Management */}
-            <ListItemButton
-              onClick={() => toggleCollapse('licenseManagement')}
-              sx={{
-                py: 0.5,
-                minHeight: 36,
-                fontSize: '0.875rem',
-                '& .MuiListItemIcon-root': { minWidth: 32 }
-              }}
-            >
-              <ListItemIcon>
-                <BadgeIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="License Management"
-                slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
-              />
-              {collapsed.licenseManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-            </ListItemButton>
+            <Tooltip title="Manage software licenses, view active licenses, and grant or return licenses" placement="right" arrow>
+              <ListItemButton
+                onClick={() => toggleCollapse('licenseManagement')}
+                sx={{
+                  py: 0.5,
+                  minHeight: 36,
+                  fontSize: '0.875rem',
+                  '& .MuiListItemIcon-root': { minWidth: 32 }
+                }}
+              >
+                <ListItemIcon>
+                  <BadgeIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="License Management"
+                  slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                />
+                {collapsed.licenseManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </ListItemButton>
+            </Tooltip>
             <Collapse in={!collapsed.licenseManagement} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
-                <ListItemButton component={Link} to="/activeselfservelicenses" id="active-licenses-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><ListIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Active Self Serve Licenses" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
-                {isITDepartment() && (
+                <Tooltip title="View all currently active self-service licenses" placement="right">
+                  {hasAccess(ITEmails) && (<ListItemButton component={Link} to="/activeselfservelicenses" id="active-licenses-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><ListIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Active Self Serve Licenses" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>)}
+                </Tooltip>
+                {hasAccess(ITEmails) && (
                   <ListItemButton component={Link} to="/grantselfservelicenses" id="grant-licenses-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                     <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
                     <ListItemText primary="Grant Licenses" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -291,31 +311,35 @@ const Navbar = () => {
             </Collapse>
 
             {/* Infrastructure */}
-            <ListItemButton
-              onClick={() => toggleCollapse('infrastructure')}
-              sx={{
-                py: 0.5,
-                minHeight: 36,
-                fontSize: '0.875rem',
-                '& .MuiListItemIcon-root': { minWidth: 32 }
-              }}
-            >
-              <ListItemIcon>
-                <ServerIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Infrastructure"
-                slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
-              />
-              {collapsed.infrastructure ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-            </ListItemButton>
+            <Tooltip title="View and manage IT infrastructure including VMware hosts, workstations, and physical drives" placement="right" arrow>
+              <ListItemButton
+                onClick={() => toggleCollapse('infrastructure')}
+                sx={{
+                  py: 0.5,
+                  minHeight: 36,
+                  fontSize: '0.875rem',
+                  '& .MuiListItemIcon-root': { minWidth: 32 }
+                }}
+              >
+                <ListItemIcon>
+                  <ServerIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Infrastructure"
+                  slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                />
+                {collapsed.infrastructure ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </ListItemButton>
+            </Tooltip>
             <Collapse in={!collapsed.infrastructure} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
-                {isITDepartment() && (
-                  <ListItemButton component={Link} to="/dashboard" id="dashboard-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                    <ListItemIcon><DashboardIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Assignment Dashboard" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                  </ListItemButton>
+                {hasAccess(ITEmails) && (
+                  <Tooltip title="View workstation assignments and resource allocation dashboard" placement="right">
+                    <ListItemButton component={Link} to="/assignworkstations" id="dashboard-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><DashboardIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Assignment Dashboard" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                  </Tooltip>
                 )}
                 <ListItemButton component={Link} to="/vmwarehosts" id="vmwarehosts-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ServerIcon fontSize="small" /></ListItemIcon>
@@ -325,18 +349,20 @@ const Navbar = () => {
                   <ListItemIcon><AppleIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="JAMF Machine Info" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
-                {isITDepartment() && (
+                {hasAccess(ITEmails) && (
                   <ListItemButton component={Link} to="/rendermanagement" id="render-management-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                     <ListItemIcon><CloudQueueIcon fontSize="small" /></ListItemIcon>
                     <ListItemText primary="Render Management" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                   </ListItemButton>
                 )}
-                {isITDepartment() && (
-                  <ListItemButton component={Link} to="/assignworkstations" id="assign-workstations-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                    <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Assign Workstations" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                  </ListItemButton>
-                )}
+                {/* {hasAccess(ITEmails) && (
+                  <Tooltip title="Assign workstations to users" placement="right">
+                    <ListItemButton component={Link} to="/assignworkstations" id="assign-workstations-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Assign Workstations" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                  </Tooltip>
+                )} */}
                 <ListItemButton component={Link} to="/ldapmachineinfo" id="ldapmachineinfo-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><LaptopIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="LDAP Machine Info" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -349,34 +375,38 @@ const Navbar = () => {
                   <ListItemIcon><StorageIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Physical Drives" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
-                {isITDepartment() && (
-                  <ListItemButton component={Link} to="/reboot" id="reboot-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                    <ListItemIcon><RestartAltIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Reboot Machines" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                  </ListItemButton>
+                {hasAccess(ITEmails) && (
+                  <Tooltip title="Remotely reboot selected machines" placement="right">
+                    <ListItemButton component={Link} to="/reboot" id="reboot-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><RestartAltIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Reboot Machines" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                  </Tooltip>
                 )}
               </List>
             </Collapse>
 
             {/* Storage */}
-            <ListItemButton
-              onClick={() => toggleCollapse('storage')}
-              sx={{
-                py: 0.5,
-                minHeight: 36,
-                fontSize: '0.875rem',
-                '& .MuiListItemIcon-root': { minWidth: 32 }
-              }}
-            >
-              <ListItemIcon>
-                <StorageIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Storage Information"
-                slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
-              />
-              {collapsed.storage ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-            </ListItemButton>
+            <Tooltip title="Monitor storage systems including AWS, Hammerspace, and view storage metrics" placement="right" arrow>
+              <ListItemButton
+                onClick={() => toggleCollapse('storage')}
+                sx={{
+                  py: 0.5,
+                  minHeight: 36,
+                  fontSize: '0.875rem',
+                  '& .MuiListItemIcon-root': { minWidth: 32 }
+                }}
+              >
+                <ListItemIcon>
+                  <StorageIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Storage Information"
+                  slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                />
+                {collapsed.storage ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </ListItemButton>
+            </Tooltip>
             <Collapse in={!collapsed.storage} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 <ListItemButton component={Link} to="/awscounts" id="aws-counts-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
@@ -427,66 +457,76 @@ const Navbar = () => {
             </Collapse>
 
             {/* Storage Management */}
-            <ListItemButton
-              onClick={() => toggleCollapse('storageManagement')}
-              sx={{
-                py: 0.5,
-                minHeight: 36,
-                fontSize: '0.875rem',
-                '& .MuiListItemIcon-root': { minWidth: 32 }
-              }}
-            >
-              <ListItemIcon>
-                <FolderIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Project Backups"
-                slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
-              />
-              {collapsed.storageManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-            </ListItemButton>
+            <Tooltip title="Manage project backups and transfers between storage systems" placement="right" arrow>
+              <ListItemButton
+                onClick={() => toggleCollapse('storageManagement')}
+                sx={{
+                  py: 0.5,
+                  minHeight: 36,
+                  fontSize: '0.875rem',
+                  '& .MuiListItemIcon-root': { minWidth: 32 }
+                }}
+              >
+                <ListItemIcon>
+                  <FolderIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Project Backups"
+                  slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                />
+                {collapsed.storageManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </ListItemButton>
+            </Tooltip>
             <Collapse in={!collapsed.storageManagement} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
-                <ListItemButton component={Link} to="/hammerspaceprojects" id="hammerspace-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><FolderIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Hammerspace -> S3" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
-                <ListItemButton component={Link} to="/s3copystatus" id="s3-copy-status-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><CloudQueueIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="S3 Copy Status" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
+                <Tooltip title="Backup projects from Hammerspace to AWS S3" placement="right">
+                  <ListItemButton component={Link} to="/hammerspaceprojects" id="hammerspace-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><FolderIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Hammerspace -> S3" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                </Tooltip>
+                <Tooltip title="Monitor the status of S3 backup operations" placement="right">
+                  <ListItemButton component={Link} to="/s3copystatus" id="s3-copy-status-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><CloudQueueIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="S3 Copy Status" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                </Tooltip>
                 <ListItemButton component={Link} to="/nasprojects" id="nas-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><StorageIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="NAS -> S3" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
-                <ListItemButton component={Link} to="/awsrestore" id="aws-restore-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><RestartAltIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="AWS Restore" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
+                <Tooltip title="Restore archived projects from Glacier to S3" placement="right">
+                  <ListItemButton component={Link} to="/awsrestore" id="aws-restore-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><RestartAltIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Glacier -> S3" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                </Tooltip>
               </List>
             </Collapse>
 
             {/* Finance */}
-            {hasAccess(allowedEmails) && (
+            {hasAccess(restrictedEmails) && (
               <>
-                <ListItemButton
-                  onClick={() => toggleCollapse('finance')}
-                  sx={{
-                    py: 0.5,
-                    minHeight: 36,
-                    fontSize: '0.875rem',
-                    '& .MuiListItemIcon-root': { minWidth: 32 }
-                  }}
-                >
-                  <ListItemIcon>
-                    <DescriptionIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary="Finance"
-                    slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
-                  />
-                  {collapsed.finance ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                </ListItemButton>
+                <Tooltip title="Access financial documents including invoices and sales orders" placement="right" arrow>
+                  <ListItemButton
+                    onClick={() => toggleCollapse('finance')}
+                    sx={{
+                      py: 0.5,
+                      minHeight: 36,
+                      fontSize: '0.875rem',
+                      '& .MuiListItemIcon-root': { minWidth: 32 }
+                    }}
+                  >
+                    <ListItemIcon>
+                      <DescriptionIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Finance"
+                      slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                    />
+                    {collapsed.finance ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                  </ListItemButton>
+                </Tooltip>
                 <Collapse in={!collapsed.finance} timeout="auto" unmountOnExit>
                   <List component="div" disablePadding>
                     <ListItemButton component={Link} to="/invoices" id="invoices-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
@@ -503,24 +543,26 @@ const Navbar = () => {
             )}
 
             {/* Monitoring & Tools */}
-            <ListItemButton
-              onClick={() => toggleCollapse('monitoring')}
-              sx={{
-                py: 0.5,
-                minHeight: 36,
-                fontSize: '0.875rem',
-                '& .MuiListItemIcon-root': { minWidth: 32 }
-              }}
-            >
-              <ListItemIcon>
-                <BarChartIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Monitoring & Tools"
-                slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
-              />
-              {collapsed.monitoring ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-            </ListItemButton>
+            <Tooltip title="System monitoring tools, command execution, tickets, and security scanning" placement="right" arrow>
+              <ListItemButton
+                onClick={() => toggleCollapse('monitoring')}
+                sx={{
+                  py: 0.5,
+                  minHeight: 36,
+                  fontSize: '0.875rem',
+                  '& .MuiListItemIcon-root': { minWidth: 32 }
+                }}
+              >
+                <ListItemIcon>
+                  <BarChartIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Monitoring & Tools"
+                  slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                />
+                {collapsed.monitoring ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </ListItemButton>
+            </Tooltip>
             <Collapse in={!collapsed.monitoring} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 <ListItemButton component={Link} to="/ptocalendar" id="pto-calendar-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
@@ -536,19 +578,23 @@ const Navbar = () => {
                   <ListItemText primary="Salt Command" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 {hasAccess(ITEmails) && (
-                  <ListItemButton component={Link} to="/windowscommand" id="windows-command-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                    <ListItemIcon><TerminalIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Windows Command" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                  </ListItemButton>
+                  <Tooltip title="Execute remote commands on Windows machines" placement="right">
+                    <ListItemButton component={Link} to="/windowscommand" id="windows-command-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><TerminalIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Windows Command" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                  </Tooltip>
                 )}
                 {/* <ListItemButton component={Link} to="/parsecleoreport" id="parsecleoreport-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><BarChartIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Parsec Leo Report" primaryTypographyProps={{ fontSize: '0.875rem' }} />
                 </ListItemButton> */}
-                <ListItemButton component={Link} to="/zendesktickets" id="zendesktickets-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><TicketIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Zendesk Tickets" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
+                <Tooltip title="View and manage active support tickets" placement="right">
+                  <ListItemButton component={Link} to="/zendesktickets" id="zendesktickets-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><TicketIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Zendesk Tickets" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                </Tooltip>
                 <ListItemButton component={Link} to="/zendeskarchivetickets" id="zendesk-archive-tickets-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ArchiveIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Zendesk Archive Tickets" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -569,24 +615,26 @@ const Navbar = () => {
             </Collapse>
 
             {/* Account */}
-            <ListItemButton
-              onClick={() => toggleCollapse('account')}
-              sx={{
-                py: 0.5,
-                minHeight: 36,
-                fontSize: '0.875rem',
-                '& .MuiListItemIcon-root': { minWidth: 32 }
-              }}
-            >
-              <ListItemIcon>
-                <AccountCircleIcon fontSize="small" />
-              </ListItemIcon>
-              <ListItemText
-                primary="Account"
-                slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
-              />
-              {collapsed.account ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-            </ListItemButton>
+            <Tooltip title="Manage your account profile and logout" placement="right" arrow>
+              <ListItemButton
+                onClick={() => toggleCollapse('account')}
+                sx={{
+                  py: 0.5,
+                  minHeight: 36,
+                  fontSize: '0.875rem',
+                  '& .MuiListItemIcon-root': { minWidth: 32 }
+                }}
+              >
+                <ListItemIcon>
+                  <AccountCircleIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Account"
+                  slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                />
+                {collapsed.account ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </ListItemButton>
+            </Tooltip>
             <Collapse in={!collapsed.account} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 <ListItemButton component={Link} to="/profile" id="profile-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>

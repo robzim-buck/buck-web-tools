@@ -65,34 +65,7 @@ export default function S3CopyStatus(props) {
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return { relative: 'N/A', formatted: 'N/A' };
-    
-    // Check if it's just a time (HH:MM format)
-    if (/^\d{1,2}:\d{2}$/.test(dateString)) {
-      // It's just a time, add today's date
-      const today = dayjs().format('YYYY-MM-DD');
-      const fullDateTime = dayjs(`${today} ${dateString}`);
-      return {
-        relative: fullDateTime.fromNow(),
-        formatted: fullDateTime.format('h:mm A')
-      };
-    }
-    
-    // Otherwise parse it as a full date
-    const date = dayjs(dateString);
-    
-    // Check if the date is today
-    if (date.isSame(dayjs(), 'day')) {
-      return {
-        relative: date.fromNow(),
-        formatted: date.format('h:mm A')
-      };
-    } else {
-      return {
-        relative: date.fromNow(),
-        formatted: date.format('MMM D, YYYY h:mm A')
-      };
-    }
+    return dateString || 'N/A';
   };
 
   // Loading state
@@ -201,11 +174,9 @@ export default function S3CopyStatus(props) {
                       </TableCell>
                       
                       <TableCell>
-                        <Tooltip title={dateTime.relative}>
-                          <Typography variant="body2">
-                            {dateTime.formatted}
-                          </Typography>
-                        </Tooltip>
+                        <Typography variant="body2">
+                          {dateTime}
+                        </Typography>
                       </TableCell>
                       
                       <TableCell>
