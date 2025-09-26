@@ -1,8 +1,8 @@
-import { 
+import {
   Chip, Typography, Box, Container, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, Button, Link,
-  Select, MenuItem, FormControl, Snackbar
+  Paper, Button, Link, TextField, Grid,
+  Select, MenuItem, FormControl, InputLabel, Snackbar
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -13,6 +13,11 @@ import CircularProgress from '@mui/material/CircularProgress';
 export default function NASProjects(props) {
     const [s3Config, setS3Config] = useState({});
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+    const [filters, setFilters] = useState({
+        name: '',
+        host: '',
+        location: ''
+    });
     
     // Get default location based on host/NAS
     const getDefaultLocation = (host) => {
@@ -113,11 +118,33 @@ export default function NASProjects(props) {
         }
     });
     
+    const handleFilterChange = (field, value) => {
+        setFilters(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
+
+    const filterProjects = (projects) => {
+        if (!Array.isArray(projects)) return [];
+
+        return projects.filter(project => {
+            const nameMatch = !filters.name ||
+                (project.name || '').toLowerCase().includes(filters.name.toLowerCase());
+            const hostMatch = !filters.host ||
+                (project.host || '').toLowerCase().includes(filters.host.toLowerCase());
+            const locationMatch = !filters.location ||
+                (s3Config[project.name]?.location || '').toLowerCase() === filters.location.toLowerCase();
+
+            return nameMatch && hostMatch && locationMatch;
+        });
+    };
+
     const handleCopyToS3 = (projectName) => {
         const config = s3Config[projectName] || {};
         const s3base = config.s3base || '';
         const location = config.location;
-        
+
         if (!location) {
             setSnackbar({
                 open: true,
@@ -126,14 +153,14 @@ export default function NASProjects(props) {
             });
             return;
         }
-        
+
         // Show immediate feedback
         setSnackbar({
             open: true,
             message: 'Starting the copy in celery, hang on for 15 seconds while the copy starts',
             severity: 'info'
         });
-        
+
         copyToS3Mutation.mutate({
             projectName,
             s3base: s3base,
@@ -210,10 +237,12 @@ export default function NASProjects(props) {
     }
     
     if (nasProjects.data) {
-        const sortedData = Array.isArray(nasProjects.data) 
+        const sortedData = Array.isArray(nasProjects.data)
             ? nasProjects.data.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
             : [];
-        
+
+        const filteredData = filterProjects(sortedData);
+
         if (!sortedData || sortedData.length === 0) {
             return (
                 <Box sx={{ p: 3, textAlign: 'center' }}>
@@ -228,15 +257,72 @@ export default function NASProjects(props) {
                     <Typography variant='h4' color="primary" fontWeight="medium">
                         {props.name || 'NAS Projects'}
                     </Typography>
-                    <Chip 
-                        label={`${sortedData.length} Projects`} 
-                        color="primary" 
-                        variant="outlined" 
+                    <Chip
+                        label={`${filteredData.length} of ${sortedData.length} Projects`}
+                        color="primary"
+                        variant="outlined"
                         sx={{ fontWeight: 'bold' }}
                     />
                 </Box>
 
-                <Alert severity="info" sx={{ mb: 3 }}>
+                <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+                        Filters
+                    </Typography>
+                    <Grid container spacing={2}>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            <TextField
+                                fullWidth
+                                size="small"
+                                label="Filter by Name"
+                                variant="outlined"
+                                value={filters.name}
+                                onChange={(e) => handleFilterChange('name', e.target.value)}
+                            />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            <TextField
+                                fullWidth
+                                size="small"
+                                label="Filter by Host"
+                                variant="outlined"
+                                value={filters.host}
+                                onChange={(e) => handleFilterChange('host', e.target.value)}
+                            />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            <FormControl fullWidth size="small">
+                                <InputLabel>Filter by Location</InputLabel>
+                                <Select
+                                    value={filters.location}
+                                    label="Filter by Location"
+                                    onChange={(e) => handleFilterChange('location', e.target.value)}
+                                >
+                                    <MenuItem value="">All Locations</MenuItem>
+                                    <MenuItem value="syd">syd</MenuItem>
+                                    <MenuItem value="nyc">nyc</MenuItem>
+                                    <MenuItem value="ams">ams</MenuItem>
+                                    <MenuItem value="lax">lax</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                    </Grid>
+                </Box>
+
+                {filteredData.length === 0 && (
+                    <Box sx={{ p: 3, textAlign: 'center' }}>
+                        <Typography variant="h6" color="text.secondary">
+                            No projects match the current filters
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                            Try adjusting your filters or clearing them to see more projects
+                        </Typography>
+                    </Box>
+                )}
+
+                {filteredData.length > 0 && (
+                    <>
+                        <Alert severity="info" sx={{ mb: 3 }}>
                     <Typography variant="body2">
                         <Link 
                             href="http://amscoresrv.buck.local:5555/tasks" 
@@ -276,7 +362,7 @@ export default function NASProjects(props) {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {sortedData.map((project) => {
+                            {filteredData.map((project) => {
                                 const projectKey = project.id || project.name || Math.random().toString();
                                 
                                 return (
@@ -363,6 +449,8 @@ export default function NASProjects(props) {
                         {snackbar.message}
                     </Alert>
                 </Snackbar>
+                    </>
+                )}
             </Container>
         );
     }

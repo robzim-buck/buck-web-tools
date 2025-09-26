@@ -14,6 +14,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PieChartIcon from '@mui/icons-material/PieChart';
+import DownloadIcon from '@mui/icons-material/Download';
 import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
@@ -831,6 +832,7 @@ export default function ActiveSelfServLicenses(props) {
         }
     }
 
+
     if (activeLicenses.isLoading) return <CircularProgress></CircularProgress>;
     if (activeLicenses.error) return "An error has occurred: " + activeLicenses.error.message;
     if (activeLicenses.data) {
@@ -922,10 +924,35 @@ export default function ActiveSelfServLicenses(props) {
                 }
             ];
         }
-        
+
+        // Function to export email list to CSV
+        const exportEmailList = () => {
+            // Get unique emails from filteredData
+            const uniqueEmails = [...new Set(filteredData.map(license => license.email))].filter(Boolean);
+
+            if (uniqueEmails.length === 0) {
+                alert('No emails to export');
+                return;
+            }
+
+            // Create CSV content
+            const csvContent = uniqueEmails.join('\n');
+
+            // Create and download the file
+            const blob = new Blob([csvContent], { type: 'text/plain;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `active_licenses_emails_${new Date().toISOString().split('T')[0]}.txt`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
         // We've simplified the data flow - removing the allLicenses state and tableData preparation
         // Now we'll directly map the data in the DataGrid component
-        
+
         // Group licenses by email for card view
         const groupedByEmail = {};
         filteredData.forEach(license => {
@@ -1337,23 +1364,33 @@ export default function ActiveSelfServLicenses(props) {
                                     <Typography variant="h6" color="primary">
                                         Showing all {filteredData.length} licenses in table format
                                     </Typography>
-                                    {selectedLicenses.length > 0 && (
-                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                                            <Chip
-                                                label={`${selectedLicenses.length} licenses selected`}
-                                                color="primary"
-                                                onDelete={() => setSelectedLicenses([])}
-                                            />
-                                            <Button
-                                                variant="contained"
-                                                color="error"
-                                                onClick={releaseBulkLicenses}
-                                                startIcon={<DeleteIcon />}
-                                            >
-                                                Return Selected Licenses
-                                            </Button>
-                                        </Box>
-                                    )}
+                                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                        <Button
+                                            variant="outlined"
+                                            color="primary"
+                                            onClick={exportEmailList}
+                                            startIcon={<DownloadIcon />}
+                                        >
+                                            Export Email List
+                                        </Button>
+                                        {selectedLicenses.length > 0 && (
+                                            <>
+                                                <Chip
+                                                    label={`${selectedLicenses.length} licenses selected`}
+                                                    color="primary"
+                                                    onDelete={() => setSelectedLicenses([])}
+                                                />
+                                                <Button
+                                                    variant="contained"
+                                                    color="error"
+                                                    onClick={releaseBulkLicenses}
+                                                    startIcon={<DeleteIcon />}
+                                                >
+                                                    Return Selected Licenses
+                                                </Button>
+                                            </>
+                                        )}
+                                    </Box>
                                 </Box>
                                 
                                 {/* Add debug info in case of empty data */}
@@ -1701,45 +1738,6 @@ export default function ActiveSelfServLicenses(props) {
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {/* Manual sample row for debugging */}
-                                                        <tr style={{ borderBottom: '1px solid #e0e0e0', backgroundColor: '#f0f7ff' }}>
-                                                            <td style={{ padding: '10px' }}>debug@example.com</td>
-                                                            <td style={{ padding: '10px' }}>sample-product</td>
-                                                            <td style={{ padding: '10px' }}>2023-05-01 10:30:00</td>
-                                                            <td style={{ padding: '10px' }}>2023-05-30 10:30:00</td>
-                                                            <td style={{ padding: '10px' }}>
-                                                                <span style={{ 
-                                                                    backgroundColor: '#2e7d32',
-                                                                    color: 'white',
-                                                                    padding: '4px 8px',
-                                                                    borderRadius: '4px',
-                                                                    fontSize: '0.85rem',
-                                                                    fontWeight: 'bold'
-                                                                }}>
-                                                                    Active
-                                                                </span>
-                                                            </td>
-                                                            <td style={{ padding: '10px' }}>
-                                                                <button 
-                                                                    style={{
-                                                                        backgroundColor: '#d32f2f',
-                                                                        color: 'white',
-                                                                        border: 'none',
-                                                                        padding: '6px 12px',
-                                                                        borderRadius: '4px',
-                                                                        cursor: 'pointer',
-                                                                        fontSize: '0.85rem',
-                                                                        fontWeight: 'bold'
-                                                                    }}
-                                                                >
-                                                                    Return
-                                                                </button>
-                                                            </td>
-                                                            <td style={{ padding: '10px', textAlign: 'center' }}>
-                                                                <input type="checkbox" />
-                                                            </td>
-                                                        </tr>
-                                                        
                                                         {/* Data rows dynamically generated */}
                                                         {filteredData && filteredData.length > 0 && sortTableData(filteredData)
                                                             .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
