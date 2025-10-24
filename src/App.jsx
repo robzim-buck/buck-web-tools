@@ -21,6 +21,7 @@ import Grid from '@mui/material/Grid';
 import config from './config';
 import Navbar from './Navbar';
 import AppRoutes from './components/Routes';
+import { AppDataProvider } from './contexts/AppDataProvider';
 
 const oktaAuth = new OktaAuth(config.oidc);
 
@@ -32,34 +33,36 @@ const App = () => {
 
   return (
     <Security oktaAuth={oktaAuth} restoreOriginalUri={restoreOriginalUri}>
-      <Box sx={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
-        <Box sx={{ 
-          width: '240px', 
-          flexShrink: 0, 
-          borderRight: '1px solid rgba(0, 0, 0, 0.12)',
-          height: '100vh',
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          zIndex: 100,
-          backgroundColor: 'white'
-        }}>
-          <Box sx={{ height: '100vh', overflowY: 'auto' }}>
-            <Navbar />
+      <AppDataProvider>
+        <Box sx={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
+          <Box sx={{
+            width: '240px',
+            flexShrink: 0,
+            borderRight: '1px solid rgba(0, 0, 0, 0.12)',
+            height: '100vh',
+            position: 'fixed',
+            left: 0,
+            top: 0,
+            zIndex: 100,
+            backgroundColor: 'white'
+          }}>
+            <Box sx={{ height: '100vh', overflowY: 'auto' }}>
+              <Navbar />
+            </Box>
+          </Box>
+
+          <Box sx={{
+            marginLeft: '240px',
+            flexGrow: 1,
+            p: 3,
+            height: '100vh',
+            overflowY: 'auto',
+            backgroundColor: 'white'
+          }}>
+            <AppRoutes />
           </Box>
         </Box>
-        
-        <Box sx={{ 
-          marginLeft: '240px', 
-          flexGrow: 1, 
-          p: 3, 
-          height: '100vh',
-          overflowY: 'auto',
-          backgroundColor: 'white'
-        }}>
-          <AppRoutes />
-        </Box>
-      </Box>
+      </AppDataProvider>
     </Security>
   );
 };

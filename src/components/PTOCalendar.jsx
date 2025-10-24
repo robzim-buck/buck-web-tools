@@ -39,7 +39,7 @@ import CalendarViewMonthIcon from '@mui/icons-material/CalendarViewMonth';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import TimelineIcon from '@mui/icons-material/Timeline';
-import { useProtectedApiGet } from '../hooks/useApi';
+import { useApiGet } from '../hooks/useApi';
 
 // Calendar View Component
 const CalendarView = ({ entries, getEmployeeName, getDepartment, getLocation, getStartDate, getEndDate, queryStartDate, queryEndDate }) => {
@@ -628,22 +628,71 @@ const PTOCalendar = () => {
     const [queryStartDate, setQueryStartDate] = useState(todayString);
     const [queryEndDate, setQueryEndDate] = useState(endOfMonthString);
 
-    // Build query params conditionally
-    const queryParams = { id: '10048' };
-    if (queryStartDate) {
-        queryParams.start_date = queryStartDate;
-    }
-    if (queryEndDate) {
-        queryParams.end_date = queryEndDate;
-    }
+    // Build endpoint with path parameters as required by the API
+    const databoardId = '10048';
+    const endpoint = `/deltek/deltek_databoard/${databoardId}/${queryStartDate}/${queryEndDate}`;
 
-    const { data: ptoData, isLoading, error } = useProtectedApiGet(
-        '/deltek/deltek_databoard',
+    // Fetch data with pagination support - fetching all pages
+    const { data: ptoData, isLoading, error } = useApiGet(
+        endpoint,
         {
-            queryParams,
             queryConfig: {
                 staleTime: 300000, // 5 minutes
-                refetchOnWindowFocus: false
+                refetchOnWindowFocus: false,
+                // Custom query function to handle pagination
+                queryFn: async () => {
+                    const baseUrl = 'https://laxcoresrv.buck.local:8000';
+                    let allData = [];
+                    let page = 1;
+                    let hasMore = true;
+
+                    while (hasMore) {
+                        const url = `${baseUrl}${endpoint}?page=${page}&size=500`;
+                        console.log(`Fetching page ${page} from: ${url}`);
+
+                        try {
+                            const response = await fetch(url);
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! Status: ${response.status}`);
+                            }
+                            const pageData = await response.json();
+
+                            // Handle different response formats
+                            let items = [];
+                            if (Array.isArray(pageData)) {
+                                items = pageData;
+                            } else if (pageData.data && Array.isArray(pageData.data)) {
+                                items = pageData.data;
+                            } else if (pageData.results && Array.isArray(pageData.results)) {
+                                items = pageData.results;
+                            } else if (pageData.items && Array.isArray(pageData.items)) {
+                                items = pageData.items;
+                            }
+
+                            console.log(`Page ${page}: Received ${items.length} items`);
+
+                            if (items.length === 0) {
+                                hasMore = false;
+                            } else {
+                                allData = [...allData, ...items];
+
+                                // Check if there are more pages
+                                // If we got less than the page size, we're done
+                                if (items.length < 500) {
+                                    hasMore = false;
+                                } else {
+                                    page++;
+                                }
+                            }
+                        } catch (error) {
+                            console.error(`Error fetching page ${page}:`, error);
+                            throw error;
+                        }
+                    }
+
+                    console.log(`Total items fetched: ${allData.length}`);
+                    return allData;
+                }
             },
             dependencies: [queryStartDate, queryEndDate] // Re-fetch when query dates change
         }
@@ -908,7 +957,7 @@ const PTOCalendar = () => {
     console.log('PTO Data received:', ptoData);
     console.log('PTO Data type:', typeof ptoData);
     console.log('PTO Data is array:', Array.isArray(ptoData));
-    console.log('Query params:', queryParams);
+    console.log('Query endpoint:', endpoint);
     console.log('Query dates:', { queryStartDate, queryEndDate });
     if (ptoData && Array.isArray(ptoData) && ptoData.length > 0) {
         console.log('First PTO entry:', ptoData[0]);
@@ -947,6 +996,9 @@ const PTOCalendar = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
                 <Typography variant="h4" color="primary" fontWeight="medium">
                     PTO Calendar
+                </Typography>
+                <Typography variant="body1" color="primary" fontWeight="medium">
+                    From Deltek Databoard 10048
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                     <FormControlLabel

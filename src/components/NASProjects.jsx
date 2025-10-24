@@ -51,8 +51,6 @@ export default function NASProjects(props) {
                 return 'NY_Archive17';      // NYC uses NY_Archive17
             case 'syd':
                 return 'SYDArchive2';       // SYD uses SYDArchive2
-            case 'ams':
-                return 'AMSArchive2';       // AMS uses AMSArchive2
             default:
                 return '';                  // Return empty if no match
         }
@@ -301,7 +299,6 @@ export default function NASProjects(props) {
                                     <MenuItem value="">All Locations</MenuItem>
                                     <MenuItem value="syd">syd</MenuItem>
                                     <MenuItem value="nyc">nyc</MenuItem>
-                                    <MenuItem value="ams">ams</MenuItem>
                                     <MenuItem value="lax">lax</MenuItem>
                                 </Select>
                             </FormControl>
@@ -394,7 +391,6 @@ export default function NASProjects(props) {
                                                     <MenuItem value="">-</MenuItem>
                                                     <MenuItem value="syd">syd</MenuItem>
                                                     <MenuItem value="nyc">nyc</MenuItem>
-                                                    <MenuItem value="ams">ams</MenuItem>
                                                     <MenuItem value="lax">lax</MenuItem>
                                                 </Select>
                                             </FormControl>
@@ -411,7 +407,6 @@ export default function NASProjects(props) {
                                                     <MenuItem value="NY_Archive17">NY_Archive17</MenuItem>
                                                     <MenuItem value="SYDArchive2">SYDArchive2</MenuItem>
                                                     <MenuItem value="LA_Archive8">LA_Archive8</MenuItem>
-                                                    <MenuItem value="AMSArchive2">AMSArchive2</MenuItem>
                                                 </Select>
                                             </FormControl>
                                         </TableCell>

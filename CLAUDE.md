@@ -1,9 +1,10 @@
-- Config: Anthropic's AI configuration and setup parameters that define Claude's behavior and capabilities
-- You are a typescript expert, javascript expert
-- You are expert at working with REST APIs  
-- React Query: use @tanstack/react-query to fetch data
+- You are a typescript expert, javascript expert, python expert, mysql expert.
+- Always create a todo list for requests, and display progress for the todo list.
+- You are expert at working with REST APIs.
+- React Query: use @tanstack/react-query to fetch data.
+- Prefetch data wherever practical.
 - @mui/material: always use @mui/material library for the user interface
-- Always memoize data when possible.  On a component load, memoize the data and use the memoized version of the data for data requests.  Never fetch new data for a memoized endpoint unless explicitly told to do so via a button press or some other human interaction. 
+- Always memoize data.  On a component load, memoize the data and use the memoized version of the data for data requests.  Never fetch new data for a memoized endpoint unless explicitly told to do so via a button press or some other human interaction. 
 - Never run npm start. Always assume the developer is running npm start in a terminal session.
 - When fetching data from the Buck API, always use https://laxcoresrv.buck.local:8000/openapi.json as a reference.
 - If an API call is 'protected' use this header { 'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo' } when fetching data
@@ -17,3 +18,5 @@
 - The api endpoint has cors set up properly. Always double-check cors errors to see if they are another type of error.
 - Always add newly created components to the NavBar.
 - Always try to 'raise the state' to the highest component in use.   Pass the data from the highest state to components as props.
+- For the https://laxcoresrv.buck.local:8000 endpoint, be aware of console errors about CORS as they an be misleading; check for JSX syntax errors when CORS errors are displayed in the console.
+

@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { useOktaAuth } from '@okta/okta-react';
-import { useProtectedApiGet } from '../hooks/useApi';
+import { useAppData } from '../contexts/AppDataProvider';
 
 export default function GoogleUsers(props) {
   const { authState } = useOktaAuth();
@@ -18,82 +18,11 @@ export default function GoogleUsers(props) {
 
   console.log("GoogleUsers render - Auth state:", authState?.isAuthenticated);
 
-  // Fetch Google staff users with React Query using protected endpoint
-  const googleStaffUsersQuery = useProtectedApiGet('/google/buckgoogleusers', {
-    queryParams: { status: 'active', emp_type: 'Staff' },
-    queryConfig: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false,
-      retry: 2,
-      retryDelay: 1000,
-      onSuccess: (data) => {
-        console.log("Google staff users fetched successfully:", data.length);
-        if (data.length > 0) {
-          console.log("Sample Staff Google user:", data[0]);
-        }
-      }
-    },
-    dependencies: ['staff']
-  });
-
-  // Fetch Google freelance users with React Query using protected endpoint
-  const googleFreelanceUsersQuery = useProtectedApiGet('/google/buckgoogleusers', {
-    queryParams: { status: 'active', emp_type: 'Freelance' },
-    queryConfig: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false,
-      retry: 2,
-      retryDelay: 1000,
-      onSuccess: (data) => {
-        console.log("Google freelance users fetched successfully:", data.length);
-        if (data.length > 0) {
-          console.log("Sample Freelance Google user:", data[0]);
-        }
-      }
-    },
-    dependencies: ['freelance']
-  });
-
-  // Combine and process Google users data
-  const googleUsers = useMemo(() => {
-    if (googleStaffUsersQuery.isLoading || googleFreelanceUsersQuery.isLoading) {
-      return [];
-    }
-
-    if (googleStaffUsersQuery.error || googleFreelanceUsersQuery.error) {
-      console.error("Error fetching Google users:", googleStaffUsersQuery.error || googleFreelanceUsersQuery.error);
-      return [];
-    }
-
-    // Ensure data is in expected format
-    console.log("Staff query data:", googleStaffUsersQuery.data);
-    console.log("Freelance query data:", googleFreelanceUsersQuery.data);
-    
-    const staffData = Array.isArray(googleStaffUsersQuery.data) ? googleStaffUsersQuery.data : [];
-    const freelanceData = Array.isArray(googleFreelanceUsersQuery.data) ? googleFreelanceUsersQuery.data : [];
-
-    // Combine both sets of users
-    const data = [...staffData, ...freelanceData];
-    console.log("Combined Google users:", data.length);
-
-    // The Google API already provides thumbnailPhotoUrl in the correct format
-    // We'll just log one sample and pass through the data without modification
-    const processedData = data;
-
-    // Log sample data for debugging
-    if (data.length > 0) {
-      console.log("Sample Google user:", data[0]);
-      console.log("Sample Google user thumbnailPhotoUrl:", data[0].thumbnailPhotoUrl);
-    }
-
-    // Count users with thumbnails
-    const usersWithThumbnails = processedData.filter(user => user.thumbnailPhotoUrl).length;
-    console.log(`Google users with thumbnails: ${usersWithThumbnails}`);
-
-    return processedData;
-  }, [googleStaffUsersQuery.data, googleFreelanceUsersQuery.data,
-      googleStaffUsersQuery.isLoading, googleFreelanceUsersQuery.isLoading,
-      googleStaffUsersQuery.error, googleFreelanceUsersQuery.error]);
+  // Get Google users data from context
+  const { data, queries, isDataLoading } = useAppData();
+  const googleUsers = data.googleUsers || [];
+  const isLoading = isDataLoading('googleUsers');
+  const error = queries.googleStaff.error || queries.googleFreelance.error;
 
   // Get user initials for avatar fallback
   const getUserInitials = (user) => {
@@ -118,13 +47,6 @@ export default function GoogleUsers(props) {
       .filter(user => user.organizations && user.organizations[0]?.department)
       .map(user => user.organizations[0].department)
   )].sort();
-
-  // Determine loading state
-  const isLoading = googleStaffUsersQuery.isLoading || googleFreelanceUsersQuery.isLoading;
-
-  // Determine error state
-  const error = (googleStaffUsersQuery.error && googleFreelanceUsersQuery.error) ?
-                "Failed to fetch Google users" : null;
 
   if (isLoading) {
     return (

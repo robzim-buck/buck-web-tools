@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQueries } from "@tanstack/react-query";
-import { 
-  Typography, Box, Container, Grid, 
+import {
+  Typography, Box, Container, Grid,
   Card, CardContent, Chip, Divider,
-  Paper, TextField, InputAdornment, 
+  Paper, TextField, InputAdornment,
   IconButton, Avatar, Tooltip,
   Collapse, Button, CircularProgress, Alert, AlertTitle,
-  Table, TableContainer, TableBody, TableCell, TableRow
+  Table, TableContainer, TableBody, TableCell, TableRow,
+  MenuItem
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -229,30 +230,6 @@ export default function LDAPUsers(props) {
         // Get unique status values for filters
         const accountStatusOptions = [...new Set(sortedData.map(user => setADLabel(user.userAccountControl)))];
         
-        // Function to get user initials
-        const getUserInitials = (name) => {
-            if (!name) return 'U';
-            
-            // Try to extract initials from the name format "LastName, FirstName"
-            const parts = name.split(',');
-            if (parts.length === 2) {
-                const lastName = parts[0]?.trim() || '';
-                const firstName = parts[1]?.trim() || '';
-                
-                if (firstName && lastName) {
-                    return `${firstName[0]}${lastName[0]}`.toUpperCase();
-                }
-            }
-            
-            // Fallback to first 1-2 chars of the name
-            const nameParts = name.split(' ');
-            if (nameParts.length > 1) {
-                return `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase();
-            }
-            
-            return name.substring(0, 2).toUpperCase();
-        };
-        
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
                 {/* Header */}
@@ -289,9 +266,29 @@ export default function LDAPUsers(props) {
                                 )
                             }}
                         />
-                        
-                        <IconButton 
-                            size="small" 
+
+                        <Button
+                            variant={filters.accountStatus === 'Active' ? 'contained' : 'outlined'}
+                            size="small"
+                            startIcon={<LockOpenIcon />}
+                            onClick={() => setFilters({ ...filters, accountStatus: filters.accountStatus === 'Active' ? '' : 'Active' })}
+                            color={filters.accountStatus === 'Active' ? 'success' : 'inherit'}
+                        >
+                            Active
+                        </Button>
+
+                        <Button
+                            variant={filters.accountStatus === 'Inactive' ? 'contained' : 'outlined'}
+                            size="small"
+                            startIcon={<LockIcon />}
+                            onClick={() => setFilters({ ...filters, accountStatus: filters.accountStatus === 'Inactive' ? '' : 'Inactive' })}
+                            color={filters.accountStatus === 'Inactive' ? 'error' : 'inherit'}
+                        >
+                            Inactive
+                        </Button>
+
+                        <IconButton
+                            size="small"
                             color={showFilters ? "primary" : "default"}
                             onClick={() => setShowFilters(!showFilters)}
                             sx={{ border: showFilters ? '1px solid' : 'none' }}
@@ -299,10 +296,10 @@ export default function LDAPUsers(props) {
                             <FilterIcon />
                         </IconButton>
                     </Box>
-                    
+
                     <Box>
-                        <Button 
-                            variant="outlined" 
+                        <Button
+                            variant="outlined"
                             size="small"
                             onClick={() => toggleExpandAll(finalFilteredUsers, true)}
                             startIcon={<ExpandMoreIcon />}
@@ -310,8 +307,8 @@ export default function LDAPUsers(props) {
                         >
                             Expand All
                         </Button>
-                        <Button 
-                            variant="outlined" 
+                        <Button
+                            variant="outlined"
                             size="small"
                             onClick={() => toggleExpandAll(finalFilteredUsers, false)}
                             startIcon={<ExpandLessIcon />}
@@ -328,42 +325,88 @@ export default function LDAPUsers(props) {
                         <Grid container spacing={2} alignItems="center">
                             <Grid item xs={12} sm={4}>
                                 <TextField
-                                    label="Account Status"
-                                    size="small"
-                                    fullWidth
                                     select
-                                    SelectProps={{ native: true }}
+                                    fullWidth
+                                    size="small"
+                                    label="Account Status"
                                     value={filters.accountStatus}
                                     onChange={(e) => setFilters({ ...filters, accountStatus: e.target.value })}
+                                    sx={{
+                                        bgcolor: 'white',
+                                        '& .MuiOutlinedInput-root': {
+                                            bgcolor: 'white'
+                                        }
+                                    }}
+                                    InputLabelProps={{
+                                        shrink: true
+                                    }}
+                                    slotProps={{
+                                        select: {
+                                            displayEmpty: true,
+                                            MenuProps: {
+                                                PaperProps: {
+                                                    sx: {
+                                                        bgcolor: 'white',
+                                                        '& .MuiMenuItem-root': {
+                                                            bgcolor: 'white'
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }}
                                 >
-                                    <option value="">Any Status</option>
+                                    <MenuItem value=""><em>Any Status</em></MenuItem>
                                     {accountStatusOptions.map(status => (
-                                        <option key={status} value={status}>{status}</option>
+                                        <MenuItem key={status} value={status}>{status}</MenuItem>
                                     ))}
                                 </TextField>
                             </Grid>
-                            
+
                             <Grid item xs={12} sm={4}>
                                 <TextField
-                                    label="Last Login"
-                                    size="small"
-                                    fullWidth
                                     select
-                                    SelectProps={{ native: true }}
+                                    fullWidth
+                                    size="small"
+                                    label="Last Login"
                                     value={filters.lastLogin}
                                     onChange={(e) => setFilters({ ...filters, lastLogin: e.target.value })}
+                                    sx={{
+                                        bgcolor: 'white',
+                                        '& .MuiOutlinedInput-root': {
+                                            bgcolor: 'white'
+                                        }
+                                    }}
+                                    InputLabelProps={{
+                                        shrink: true
+                                    }}
+                                    slotProps={{
+                                        select: {
+                                            displayEmpty: true,
+                                            MenuProps: {
+                                                PaperProps: {
+                                                    sx: {
+                                                        bgcolor: 'white',
+                                                        '& .MuiMenuItem-root': {
+                                                            bgcolor: 'white'
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }}
                                 >
-                                    <option value="">Any Time</option>
-                                    <option value="recent">Within 30 days</option>
-                                    <option value="old">Older than 30 days</option>
-                                    <option value="never">Never logged in</option>
+                                    <MenuItem value=""><em>Any Time</em></MenuItem>
+                                    <MenuItem value="recent">Within 30 days</MenuItem>
+                                    <MenuItem value="old">Older than 30 days</MenuItem>
+                                    <MenuItem value="never">Never logged in</MenuItem>
                                 </TextField>
                             </Grid>
-                            
+
                             <Grid item xs={12} sm={4}>
-                                <Button 
-                                    variant="outlined" 
-                                    size="small" 
+                                <Button
+                                    variant="outlined"
+                                    size="small"
                                     startIcon={<ClearAllIcon />}
                                     onClick={handleResetFilters}
                                 >
@@ -409,96 +452,90 @@ export default function LDAPUsers(props) {
                     <Grid container spacing={2}>
                         {finalFilteredUsers.map(user => {
                             const isExpanded = expandedUsers[user.name] || false;
-                            const userInitials = getUserInitials(user.name);
                             const accountStatus = setADLabel(user.userAccountControl);
                             const statusColor = setColor(user.userAccountControl);
                             const lastLoginDate = formatDate(user.lastLogon);
                             const createdDate = formatDate(user.whenCreated);
                             const expiresDate = formatDate(user.accountExpires);
-                            
+
                             return (
-                                <Grid item xs={12} sm={6} md={4} lg={3} key={uuid()}>
+                                <Grid size={12} key={uuid()}>
                                     <Card variant="outlined" sx={{ height: '100%' }}>
-                                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                                             {/* User header - always visible */}
-                                            <Box 
-                                                sx={{ 
-                                                    display: 'flex', 
-                                                    flexDirection: 'column',
-                                                    cursor: 'pointer'
+                                            <Box
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    cursor: 'pointer',
+                                                    gap: 2
                                                 }}
                                                 onClick={() => toggleUserExpand(user.name)}
                                             >
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                        <Avatar 
-                                                            sx={{ 
-                                                                bgcolor: statusColor === 'success' ? 'primary.main' : 
-                                                                         statusColor === 'error' ? 'error.main' : 'warning.main'
-                                                            }}
-                                                        >
-                                                            {statusColor === 'error' ? <LockIcon /> : <PersonIcon />}
-                                                        </Avatar>
-                                                        <Typography 
-                                                            variant="subtitle1" 
-                                                            fontWeight="medium"
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexGrow: 1, minWidth: 0 }}>
+                                                    <Avatar
+                                                        sx={{
+                                                            width: 32,
+                                                            height: 32,
+                                                            bgcolor: statusColor === 'success' ? 'primary.main' :
+                                                                     statusColor === 'error' ? 'error.main' : 'warning.main'
+                                                        }}
+                                                    >
+                                                        {statusColor === 'error' ? <LockIcon fontSize="small" /> : <PersonIcon fontSize="small" />}
+                                                    </Avatar>
+                                                    <Typography
+                                                        variant="body1"
+                                                        fontWeight="medium"
+                                                        noWrap
+                                                        title={user.name}
+                                                        sx={{
+                                                            minWidth: 150,
+                                                            maxWidth: 250,
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis'
+                                                        }}
+                                                    >
+                                                        {user.name}
+                                                    </Typography>
+                                                    <Chip
+                                                        size="small"
+                                                        color={statusColor}
+                                                        label={accountStatus}
+                                                        sx={{ height: 24 }}
+                                                    />
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                        <CalendarIcon fontSize="small" color="action" />
+                                                        <Typography
+                                                            variant="body2"
+                                                            color="text.secondary"
                                                             noWrap
-                                                            title={user.name}
-                                                            sx={{ 
-                                                                maxWidth: 150,
-                                                                overflow: 'hidden',
-                                                                textOverflow: 'ellipsis'
-                                                            }}
                                                         >
-                                                            {user.name}
+                                                            {lastLoginDate}
                                                         </Typography>
                                                     </Box>
-                                                    
-                                                    <IconButton 
-                                                        size="small"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            toggleUserExpand(user.name);
-                                                        }}
-                                                    >
-                                                        {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                                                    </IconButton>
-                                                </Box>
-                                                
-                                                <Box sx={{ mt: 1 }}>
-                                                    <Chip 
-                                                        size="small" 
-                                                        color={statusColor} 
-                                                        label={accountStatus}
-                                                        sx={{ mb: 1 }}
-                                                    />
-                                                    
-                                                    <Typography 
-                                                        variant="body2" 
-                                                        color="text.secondary"
-                                                        sx={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 0.5,
-                                                            mb: 0.5
-                                                        }}
-                                                    >
-                                                        <CalendarIcon fontSize="small" />
-                                                        Last Login: {lastLoginDate}
-                                                    </Typography>
-                                                    
                                                     {user.description && (
-                                                        <Typography 
-                                                            variant="body2" 
+                                                        <Typography
+                                                            variant="body2"
                                                             color="text.secondary"
                                                             noWrap
                                                             title={user.description}
-                                                            sx={{ mt: 0.5 }}
+                                                            sx={{ flexGrow: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}
                                                         >
                                                             {user.description}
                                                         </Typography>
                                                     )}
                                                 </Box>
+
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleUserExpand(user.name);
+                                                    }}
+                                                >
+                                                    {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                                                </IconButton>
                                             </Box>
                                             
                                             {/* Expanded details */}

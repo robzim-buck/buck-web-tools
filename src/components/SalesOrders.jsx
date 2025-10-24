@@ -1,12 +1,12 @@
-import axios from 'axios';
 import dayjs from 'dayjs';
-import { useEffect, useState, Component } from 'react';
-import { Typography, Button, Chip, Select, MenuItem } from '@mui/material';
+import { useState, Component } from 'react';
+import { Typography, Button, Select, MenuItem } from '@mui/material';
 import { Paper, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, TableSortLabel } from '@mui/material'
 import uuid from 'react-uuid';
 import CircularProgress from '@mui/material/CircularProgress';
 import { DatePicker, LocalizationProvider }  from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { useProtectedApiGet } from '../hooks/useApi';
 let USDollar = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -46,11 +46,8 @@ export default function SalesOrders(props) {
     let todayString = dayjs(today.toISOString());
 
     console.log('today string = ', todayString);
-    // const [valueString, setValueString] = useState(todayString.format('YYYY-MM-DD'))
     const [valueString, setValueString] = useState('')
-    const [invoices, setInvoices] = useState('');
     const [jobfilter, setJobfilter] = useState('');
-    // const [datefilter, setDatefilter] = useState('');
     const [table, setTable] = useState('PRODUCTION');
 
     const [datePickerValue, setDatePickerValue] = useState(dayjs(''));
@@ -71,20 +68,13 @@ export default function SalesOrders(props) {
         handleRequestSort(property);
     };
 
-
-
-        useEffect(() => {
-            axios.get(`https://laxcoresrv.buck.local:8000/sales_order_info?_system=${table}`).then(function(response) {
-                console.log(response.status)
-                    let resData = response.data;
-                    console.log(`fetched ${resData.length} invoices`)
-                    setInvoices(resData)
-                }).catch(function(error) {
-                console.log(error)
-            }).finally( () =>  {
-                console.log('finally!')
-            } )
-        }, [table])
+    const { data: invoices, isLoading, error } = useProtectedApiGet(
+        '/netsuite/sales_orders_for_day',
+        {
+            queryParams: { system: table },
+            dependencies: [table]
+        }
+    );
     
 
     if (invoices) {
@@ -311,5 +301,7 @@ export default function SalesOrders(props) {
             </>
             )
     }
-    if (! invoices ) return <CircularProgress></CircularProgress>;
+    if (isLoading) return <CircularProgress></CircularProgress>;
+    if (error) return <Typography color="error">Error loading sales orders: {error.message}</Typography>;
+    if (!invoices) return <CircularProgress></CircularProgress>;
 }

@@ -155,6 +155,20 @@ const productCount = (list, product) => {
     return aCount
 }
 
+const getUniqueProducts = (data) => {
+    // Get unique products from the data and filter out null/undefined
+    const products = [...new Set(data.map(item => item.product).filter(product => product))];
+    return products.sort(); // Sort alphabetically for consistent ordering
+}
+
+const generateProductColor = (index, total) => {
+    // Generate colors using HSL for better distribution
+    const hue = (index * 360) / total;
+    const saturation = 70 + (index % 3) * 10; // Vary saturation between 70-90%
+    const lightness = 45 + (index % 2) * 10; // Vary lightness between 45-55%
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
 
 
 
@@ -1052,69 +1066,23 @@ export default function ActiveSelfServLicenses(props) {
                                 
                                 {/* Visual Representation of License Distribution */}
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
-                                    {/* Adobe */}
-                                    <ProductBar 
-                                        name="Adobe" 
-                                        count={productCount(finalSortedData, 'adobe')} 
-                                        total={finalSortedData.length} 
-                                        color="#FF0000" 
-                                    />
-                                    
-                                    {/* Acrobat */}
-                                    <ProductBar 
-                                        name="Acrobat" 
-                                        count={productCount(finalSortedData, 'acrobat')} 
-                                        total={finalSortedData.length} 
-                                        color="#FF5733" 
-                                    />
-                                    
-                                    {/* Substance */}
-                                    <ProductBar 
-                                        name="Substance" 
-                                        count={productCount(finalSortedData, 'substance')} 
-                                        total={finalSortedData.length} 
-                                        color="#C70039" 
-                                    />
-                                    
-                                    {/* Figma */}
-                                    <ProductBar 
-                                        name="Figma" 
-                                        count={productCount(finalSortedData, 'figma')} 
-                                        total={finalSortedData.length} 
-                                        color="#900C3F" 
-                                    />
-                                    
-                                    {/* Figjam */}
-                                    <ProductBar 
-                                        name="Figjam" 
-                                        count={productCount(finalSortedData, 'figjam')} 
-                                        total={finalSortedData.length} 
-                                        color="#581845" 
-                                    />
-                                    
-                                    {/* Figma/Figjam */}
-                                    <ProductBar 
-                                        name="Figma/Figjam" 
-                                        count={productCount(finalSortedData, 'figmafigjam')} 
-                                        total={finalSortedData.length} 
-                                        color="#800080" 
-                                    />
-                                    
-                                    {/* MS Office 365 */}
-                                    <ProductBar 
-                                        name="MS Office 365" 
-                                        count={productCount(finalSortedData, 'mso365')} 
-                                        total={finalSortedData.length} 
-                                        color="#0078D7" 
-                                    />
-                                    
-                                    {/* Maya */}
-                                    <ProductBar 
-                                        name="Maya" 
-                                        count={productCount(finalSortedData, 'maya')} 
-                                        total={finalSortedData.length} 
-                                        color="#006064" 
-                                    />
+                                    {(() => {
+                                        const uniqueProducts = getUniqueProducts(finalSortedData);
+                                        return uniqueProducts.map((product, index) => {
+                                            const count = productCount(finalSortedData, product);
+                                            const color = generateProductColor(index, uniqueProducts.length);
+
+                                            return (
+                                                <ProductBar
+                                                    key={product}
+                                                    name={product}
+                                                    count={count}
+                                                    total={finalSortedData.length}
+                                                    color={color}
+                                                />
+                                            );
+                                        });
+                                    })()}
                                 </Box>
                             </Card>
                         </Grid>

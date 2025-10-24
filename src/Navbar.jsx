@@ -11,7 +11,7 @@
  */
 
 import { useOktaAuth } from '@okta/okta-react';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useProtectedApiGet } from './hooks/useApi';
 import { 
@@ -69,11 +69,16 @@ import {
   CalendarToday as CalendarTodayIcon,
   TableChart as TableChartIcon,
   Lock as LockIcon,
-  CloudQueue as CloudQueueIcon
+  CloudQueue as CloudQueueIcon,
+  ArrowForward as ArrowForwardIcon,
+  SwapHoriz as SwapHorizIcon,
+  AttachMoney as AttachMoneyIcon,
+  WorkOutline as WorkOutlineIcon,
+  Slideshow as SlideshowIcon
 } from '@mui/icons-material';
 
 // Email lists from Routes.jsx
-const restrictedEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co";
+const restrictedEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co";
 const ITEmails = "kevin@buck.co,andrew.burnett@buck.co,harry.youngjones@buck.co,mj.hilomen@buck.co,daniel.hernandez@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co,mike.villasana@buck.co";
 
 const Navbar = () => {
@@ -86,7 +91,9 @@ const Navbar = () => {
     storageManagement: true,
     finance: true,
     monitoring: true,
-    account: true
+    onboarding: true,
+    account: true,
+    projects: true
   });
   const [logoSrc, setLogoSrc] = useState('/BUCK_B_Loop.gif');
 
@@ -156,8 +163,8 @@ const Navbar = () => {
   }
 
   return (
-    <Paper elevation={0} sx={{ borderRadius: 0, overflow: 'hidden', height: '100%', boxShadow: 'none', backgroundColor: 'white' }}>
-      <Box sx={{ pt: 2, pb: 1, display: 'flex', justifyContent: 'center' }}>
+    <Paper elevation={0} sx={{ borderRadius: 0, height: '100%', boxShadow: 'none', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ pt: 2, pb: 1, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
         <Box
           component="img"
           src={logoSrc}
@@ -165,9 +172,10 @@ const Navbar = () => {
           sx={{ width: '50%', maxHeight: 60, objectFit: 'contain' }}
         />
       </Box>
-      <Divider />
-      
-      <List component="nav" dense sx={{ width: '100%', pt: 1 }}>
+      <Divider sx={{ flexShrink: 0 }} />
+
+      <Box sx={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        <List component="nav" dense sx={{ width: '100%', pt: 1 }}>
         {authState.isAuthenticated && (
           <>
             {/* Department Display */}
@@ -194,7 +202,7 @@ const Navbar = () => {
                   <PersonIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText
-                  primary="User Management"
+                  primary="Users / Groups"
                   slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
                 />
                 {collapsed.userManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
@@ -222,6 +230,10 @@ const Navbar = () => {
                 <ListItemButton component={Link} to="/googleusers" id="google-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Google Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/ldapgroups" id="ldap-groups-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><GroupsIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="LDAP Groups" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/ldapusers" id="ldap-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ContactMailIcon fontSize="small" /></ListItemIcon>
@@ -251,18 +263,109 @@ const Navbar = () => {
                   <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Zoom Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
-
-                {/* Keep Add Okta User at the end, after all the display items */}
-                {hasAccess(ITEmails) && (
-                  <Tooltip title="Create and onboard a new user to the system" placement="right">
-                    <ListItemButton component={Link} to="/onboardnewuser" id="onboard-user-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                      <ListItemIcon><AddIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="OnBoard New User" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                    </ListItemButton>
-                  </Tooltip>
-                )}
               </List>
             </Collapse>
+
+            {/* Onboarding */}
+            {hasAccess(ITEmails) && (
+              <>
+                <Tooltip title="Onboard and manage new users in the system" placement="right" arrow>
+                  <ListItemButton
+                    onClick={() => toggleCollapse('onboarding')}
+                    sx={{
+                      py: 0.5,
+                      minHeight: 36,
+                      fontSize: '0.875rem',
+                      '& .MuiListItemIcon-root': { minWidth: 32 }
+                    }}
+                  >
+                    <ListItemIcon>
+                      <Box
+                        component="img"
+                        src="/residence-logo.png"
+                        alt="Residence Logo"
+                        sx={{ width: 20, height: 20, objectFit: 'contain' }}
+                      />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Residence OnBoarding"
+                      slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                    />
+                    {collapsed.onboarding ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                  </ListItemButton>
+                </Tooltip>
+                <Collapse in={!collapsed.onboarding} timeout="auto" unmountOnExit>
+                  <List component="div" disablePadding>
+                    <Tooltip title="Create and onboard a new user to the system" placement="right">
+                      <ListItemButton component={Link} to="/onboardnewuser" id="onboard-user-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                        <ListItemIcon>
+                          <Box
+                            component="img"
+                            src="/residence-logo.png"
+                            alt="Residence Logo"
+                            sx={{ width: 20, height: 20, objectFit: 'contain' }}
+                          />
+                        </ListItemIcon>
+                        <ListItemText primary="OnBoard New Resident" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                      </ListItemButton>
+                    </Tooltip>
+                  </List>
+                </Collapse>
+              </>
+            )}
+
+            {/* Projects */}
+            {hasAccess(restrictedEmails) && (
+              <>
+                <Tooltip title="View and manage projects across the organization" placement="right" arrow>
+                  <ListItemButton
+                    onClick={() => toggleCollapse('projects')}
+                    sx={{
+                      py: 0.5,
+                      minHeight: 36,
+                      fontSize: '0.875rem',
+                      '& .MuiListItemIcon-root': { minWidth: 32 }
+                    }}
+                  >
+                    <ListItemIcon>
+                      <WorkOutlineIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Projects from Coda"
+                      slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
+                    />
+                    {collapsed.projects ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                  </ListItemButton>
+                </Tooltip>
+                <Collapse in={!collapsed.projects} timeout="auto" unmountOnExit>
+                  <List component="div" disablePadding>
+                    <ListItemButton component={Link} to="/giantantprojects" id="giant-ant-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><WorkOutlineIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Giant Ant Projects" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                    <ListItemButton component={Link} to="/globalcapabilities" id="global-capabilities-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><SlideshowIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Global Capabilities" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                    <ListItemButton component={Link} to="/globalprojects" id="global-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><WorkOutlineIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Global Projects" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                    <ListItemButton component={Link} to="/residenceprojects" id="residence-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon>
+                        <Box
+                          component="img"
+                          src="/residence-logo.png"
+                          alt="Residence Logo"
+                          sx={{ width: 20, height: 20, objectFit: 'contain' }}
+                        />
+                      </ListItemIcon>
+                      <ListItemText primary="Residence Projects" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                  </List>
+                </Collapse>
+              </>
+            )}
 
             {/* License Management */}
             <Tooltip title="Manage software licenses, view active licenses, and grant or return licenses" placement="right" arrow>
@@ -311,7 +414,7 @@ const Navbar = () => {
             </Collapse>
 
             {/* Infrastructure */}
-            <Tooltip title="View and manage IT infrastructure including VMware hosts, workstations, and physical drives" placement="right" arrow>
+            <Tooltip title="View and manage IT infrastructure including VMware VDI hosts, workstations, and physical drives" placement="right" arrow>
               <ListItemButton
                 onClick={() => toggleCollapse('infrastructure')}
                 sx={{
@@ -343,7 +446,7 @@ const Navbar = () => {
                 )}
                 <ListItemButton component={Link} to="/vmwarehosts" id="vmwarehosts-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ServerIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="VMWare Hosts" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  <ListItemText primary="VMWare VDI Hosts" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/jamfmachineinfo" id="jamfmachineinfo-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><AppleIcon fontSize="small" /></ListItemIcon>
@@ -471,7 +574,15 @@ const Navbar = () => {
                   <FolderIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText
-                  primary="Project Backups"
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <span>Project</span>
+                      <ArrowForwardIcon sx={{ fontSize: '0.875rem' }} />
+                      <span>S3</span>
+                      <SwapHorizIcon sx={{ fontSize: '0.875rem' }} />
+                      <span>Glacier</span>
+                    </Box>
+                  }
                   slotProps={{ primary: { fontSize: '0.875rem', fontWeight: 'medium' } }}
                 />
                 {collapsed.storageManagement ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
@@ -518,7 +629,7 @@ const Navbar = () => {
                     }}
                   >
                     <ListItemIcon>
-                      <DescriptionIcon fontSize="small" />
+                      <AttachMoneyIcon fontSize="small" />
                     </ListItemIcon>
                     <ListItemText
                       primary="Finance"
@@ -667,6 +778,7 @@ const Navbar = () => {
           </ListItemButton>
         )}
       </List>
+      </Box>
     </Paper>
   );
 };

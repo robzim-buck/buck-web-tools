@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useQueries } from "@tanstack/react-query";
-import { 
-  Typography, Box, Container, Grid, 
+import { useAppData } from '../contexts/AppDataProvider';
+import {
+  Typography, Box, Container, Grid,
   Card, CardContent, Chip, Divider,
   Accordion, AccordionSummary, AccordionDetails,
   Button, LinearProgress
@@ -21,20 +21,9 @@ export default function JAMFMachineInfo(props) {
     }));
   };
 
-  const [jamf_machine_info] = useQueries({
-    queries: [
-      {
-        queryKey: ["jamf_machine_info"],
-        queryFn: () =>
-        fetch("https://laxcoresrv.buck.local:8000/mongo/jamf_computers_from_mongo?count=999", {
-          headers: {
-            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-          }
-        },
-        ).then((res) => res.json()),
-      },
-    ]
-  });
+  // Get data from context
+  const { data: appData, queries } = useAppData();
+  const jamf_machine_info = queries.jamfMachineInfo;
 
   if (jamf_machine_info.isLoading) {
     return (

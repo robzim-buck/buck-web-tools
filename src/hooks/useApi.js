@@ -88,6 +88,7 @@ export const useProtectedApiGet = (endpoint, options = {}) => {
       try {
         console.log(`Protected API request to: ${url}`);
         const response = await fetch(url, {
+          method: 'GET',
           headers: {
             'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
           }

@@ -49,6 +49,7 @@ const LDAPMachineInfo = lazy(() => import('./LDAPMachineInfo'));
 const OktaUsers = lazy(() => import('./OktaUsers'));
 const OktaGroups = lazy(() => import('./OktaGroups'));
 const LDAPUsers = lazy(() => import('./LDAPUsers'));
+const LDAPGroups = lazy(() => import('./LDAPGroups'));
 const CompositeMachineInfo = lazy(() => import('./CompositeMachineInfo'));
 const AdobeUsers = lazy(() => import('./AdobeUsers'));
 const AdobeGroups = lazy(() => import('./AdobeGroups'));
@@ -70,11 +71,15 @@ const AWSCounts = lazy(() => import('./AWSCounts'));
 const AWSRestore = lazy(() => import('./AWSRestore'));
 const RenderManagement = lazy(() => import('./RenderManagement'));
 const AssignWorkstations = lazy(() => import('./AssignWorkstations'));
+const GlobalProjects = lazy(() => import('./GlobalProjects'));
+const ResidenceProjects = lazy(() => import('./ResidenceProjects'));
+const GlobalCapabilities = lazy(() => import('./GlobalCapabilities'));
+const GiantAntProjects = lazy(() => import('./GiantAntProjects'));
 
 
-const allowedEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co"
-const ITEmails = "harry.youngjones@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,mike.villasana@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co"
-const PTOEmails = "rob.zimmelman@buck.co,john.kleber@buck.co,nick@buck.co,ncarmen@buck.co,barrett.brown@buck.co,gautam.sinha@buck.co"
+const allowedEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co"
+const ITEmails = "kevin@buck.co,harry.youngjones@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,mike.villasana@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co"
+const PTOEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,nick@buck.co,ncarmen@buck.co,barrett.brown@buck.co,gautam.sinha@buck.co"
 
 
 // Loading component for Suspense fallback
@@ -320,6 +325,12 @@ const AppRoutes = () => {
       </Route>
 
 
+      <Route path="/ldapgroups" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><LDAPGroups /></Suspense>
+        }/>
+      </Route>
+
       <Route path="/ldapusers" element={<RequiredAuth/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}><LDAPUsers /></Suspense>
@@ -441,6 +452,38 @@ const AppRoutes = () => {
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
             <RenderManagement />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/globalprojects" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <GlobalProjects />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/residenceprojects" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <ResidenceProjects />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/globalcapabilities" element={<RequiredAuth allowedEmail={allowedEmails}/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <GlobalCapabilities />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/giantantprojects" element={<RequiredAuth allowedEmail={allowedEmails}/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <GiantAntProjects />
           </Suspense>
         }/>
       </Route>

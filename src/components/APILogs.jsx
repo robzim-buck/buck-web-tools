@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Typography, Select, Box, MenuItem, FormControl, InputLabel, Alert } from '@mui/material';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -7,6 +7,7 @@ export default function APILogs(props) {
     const [logType, setLogType] = useState('api');
     const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds default
     const [isAutoRefresh, setIsAutoRefresh] = useState(true);
+    const [countdown, setCountdown] = useState(refreshInterval / 1000);
 
     // Use React Query for data fetching
     const { data: logData, isLoading, isError, error, dataUpdatedAt } = useQuery({
@@ -35,6 +36,35 @@ export default function APILogs(props) {
         staleTime: 5000,
         retry: 2
     });
+
+    // Countdown timer effect
+    useEffect(() => {
+        if (!isAutoRefresh) {
+            setCountdown(0);
+            return;
+        }
+
+        // Reset countdown to full interval
+        setCountdown(refreshInterval / 1000);
+
+        const interval = setInterval(() => {
+            setCountdown((prev) => {
+                if (prev <= 1) {
+                    return refreshInterval / 1000;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [refreshInterval, isAutoRefresh]);
+
+    // Reset countdown when data updates
+    useEffect(() => {
+        if (dataUpdatedAt && isAutoRefresh) {
+            setCountdown(refreshInterval / 1000);
+        }
+    }, [dataUpdatedAt, refreshInterval, isAutoRefresh]);
 
     const handleHostChange = (event) => {
         setFetchHost(event.target.value);
@@ -174,8 +204,8 @@ export default function APILogs(props) {
             </Typography>
             
             <Typography variant='body2' color="text.secondary" sx={{ mb: 2 }}>
-                Last updated: {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : 'Never'} 
-                {isAutoRefresh && ` (auto-refresh every ${refreshInterval/1000}s)`}
+                Last updated: {dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : 'Never'}
+                {isAutoRefresh && ` (next refresh in ${countdown}s)`}
             </Typography>
 
             <Box sx={{ 

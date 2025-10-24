@@ -71,7 +71,7 @@ export default function VMWareHosts(props) {
     });
     
     // Make API requestno 
-    axios.get(`https://laxcoresrv.buck.local:8000/vmware_power?vm=${selectedHost.vm}&instruction=${instruction}`)
+    axios.get(`https://laxcoresrv.buck.local:8000/vmware/vmware_power?vm=${selectedHost.vm}&instruction=${instruction}`)
       .then(response => {
         // Show success notification
         setSnackbar({
@@ -245,7 +245,7 @@ export default function VMWareHosts(props) {
         {/* Header */}
         <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Typography variant='h4' color="primary" fontWeight="medium">
-            {props.name || 'VMWare Hosts'}
+            {props.name || 'VMWare VDI Hosts'}
           </Typography>
           
           <Box sx={{ display: 'flex', gap: 1 }}>

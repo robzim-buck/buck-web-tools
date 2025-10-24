@@ -1,10 +1,12 @@
-import { useQueries } from "@tanstack/react-query";
 import { Typography } from '@mui/material';
 import MUIDataTable from "mui-datatables";
-
-
 import CircularProgress from '@mui/material/CircularProgress';
+import { useAppData } from '../contexts/AppDataProvider';
+
 export default function LDAPMachineInfo(props) {
+    // Get pre-fetched data from context
+    const { queries } = useAppData();
+    const ldap_machine_info = queries.ldapBasicMachineInfo;
 
     const columns = ['name', 'operatingSystem', 'operatingSystemVersion', 'isCriticalSystemObject',
                       'pwdLastSet','whenCreated',
@@ -17,17 +19,6 @@ export default function LDAPMachineInfo(props) {
         selectableRows: 'none'
       };
 
-      const [ldap_machine_info] = useQueries({
-        queries: [
-          {
-            queryKey: ["ldap_machine_info"],
-            queryFn: () =>
-            fetch("https://laxcoresrv.buck.local:8000/buckldap_machineinfo", {
-              headers: { 'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo' }
-            }).then((res) => res.json()),
-        },
-        ]
-    });
       if (ldap_machine_info.isLoading) return <CircularProgress></CircularProgress>;
       if (ldap_machine_info.error) return "An error has occurred: " + ldap_machine_info.error.message;
       if (ldap_machine_info.data) {
@@ -43,6 +34,6 @@ export default function LDAPMachineInfo(props) {
             />
             </>
             )
-    
+
     }
 }

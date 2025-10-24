@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { 
+import {
   Grid, Chip, Box, Divider, List, ListItem, ListItemText, Paper, Typography,
   Container, TextField, InputAdornment, Card, CardContent, Avatar,
   CircularProgress, Alert, AlertTitle, Tab, Tabs, IconButton, Tooltip,
-  Badge, TablePagination
+  Badge, TablePagination, FormControl, InputLabel, Select, MenuItem
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -16,7 +16,7 @@ import {
   FilterList as FilterIcon
 } from '@mui/icons-material';
 import { useQueries } from "@tanstack/react-query";
-import { useProtectedApiGet } from '../hooks/useApi';
+import { useAppData } from '../contexts/AppDataProvider';
 
 export default function AdobeUsers() {
   // State management
@@ -24,8 +24,9 @@ export default function AdobeUsers() {
   const [activeTab, setActiveTab] = useState(0);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [selectedGroup, setSelectedGroup] = useState('');
   
-  // Fetch data
+  // Fetch Adobe data directly (not pre-fetched)
   const [adobeUsers] = useQueries({
     queries: [
       {
@@ -37,95 +38,10 @@ export default function AdobeUsers() {
       },
     ]
   });
-  
-  // Fetch Google staff users
-  const googleStaffUsersQuery = useProtectedApiGet('/google/buckgoogleusers', {
-    queryParams: { status: 'active', emp_type: 'Staff' },
-    queryConfig: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false,
-      retry: 2,
-      retryDelay: 1000
-    }
-  });
 
-  // Fetch Google freelance users
-  const googleFreelanceUsersQuery = useProtectedApiGet('/google/buckgoogleusers', {
-    queryParams: { status: 'active', emp_type: 'Freelance' },
-    queryConfig: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      retry: 2,
-      retryDelay: 1000
-    },
-    dependencies: ['freelance'] // Add to query key to differentiate from staff query
-  });
-
-  // Combine Google users data
-  const googleUsers = useMemo(() => {
-    if (googleStaffUsersQuery.isLoading || googleFreelanceUsersQuery.isLoading) {
-      return [];
-    }
-
-    if (googleStaffUsersQuery.error || googleFreelanceUsersQuery.error) {
-      console.error("Error fetching Google users");
-      return [];
-    }
-
-    const staffData = googleStaffUsersQuery.data || [];
-    const freelanceData = googleFreelanceUsersQuery.data || [];
-
-    // Combine both sets of users
-    const data = [...staffData, ...freelanceData];
-    console.log("Combined Google users:", data.length);
-    
-    // Process Google user data to normalize thumbnail URLs
-    const processedData = data.map(user => {
-      // Check for thumbnail in various possible property names
-      const thumbnailUrl = user?.thumbnailPhotoUrl || user?.thumbnail || user?.photo || user?.photoUrl;
-      
-      if (thumbnailUrl && !user.thumbnailPhotoUrl) {
-        // Add standardized property name if found in an alternative property
-        return { ...user, thumbnailPhotoUrl: thumbnailUrl };
-      }
-      
-      return user;
-    });
-    
-    // Count users with thumbnails
-    const usersWithThumbnails = processedData.filter(user => user.thumbnailPhotoUrl).length;
-    console.log(`Google users with thumbnails: ${usersWithThumbnails}`);
-    
-    return processedData;
-  }, [googleStaffUsersQuery.data, googleFreelanceUsersQuery.data,
-      googleStaffUsersQuery.isLoading, googleFreelanceUsersQuery.isLoading,
-      googleStaffUsersQuery.error, googleFreelanceUsersQuery.error]);
-
-  // Create Google user lookup by email
-  const googleUsersByEmail = useMemo(() => {
-    if (!googleUsers.length) {
-      return {};
-    }
-
-    const emailMap = {};
-
-    googleUsers.forEach(user => {
-      // Add primary email
-      if (user?.primaryEmail) {
-        emailMap[user.primaryEmail.toLowerCase()] = user;
-
-        // Also store by username part only (before the @) for flexible matching
-        const username = user.primaryEmail.split('@')[0].toLowerCase();
-        if (username) {
-          emailMap[username] = user;
-        }
-      }
-    });
-
-    console.log(`Created Google user map with ${Object.keys(emailMap).length} entries`);
-    console.log('Sample Google users:', googleUsers.slice(0, 2));
-    return emailMap;
-  }, [googleUsers]);
+  // Get Google users from context for cross-referencing
+  const { data: appData, isDataLoading } = useAppData();
+  const googleUsersByEmail = appData.googleUsersByEmail || {};
 
   // Helper function to get Google user for an Adobe user
   const getGoogleUserForAdobeUser = (adobeUser) => {
@@ -149,7 +65,21 @@ export default function AdobeUsers() {
 
     return null;
   };
-  
+
+  // Extract unique groups from all users
+  const allGroups = useMemo(() => {
+    if (!adobeUsers.data) return [];
+
+    const groupsSet = new Set();
+    adobeUsers.data.forEach(user => {
+      if (user.groups && Array.isArray(user.groups)) {
+        user.groups.forEach(group => groupsSet.add(group));
+      }
+    });
+
+    return Array.from(groupsSet).sort();
+  }, [adobeUsers.data]);
+
   // Process and filter data
   const {
     sortedData,
@@ -197,12 +127,19 @@ export default function AdobeUsers() {
     let filtered = sorted;
     if (searchTerm) {
       const lowerCaseSearch = searchTerm.toLowerCase();
-      filtered = sorted.filter(user => 
+      filtered = sorted.filter(user =>
         (user.firstname?.toLowerCase().includes(lowerCaseSearch)) ||
         (user.lastname?.toLowerCase().includes(lowerCaseSearch)) ||
         (user.email?.toLowerCase().includes(lowerCaseSearch)) ||
         (user.username?.toLowerCase().includes(lowerCaseSearch)) ||
         (user.domain?.toLowerCase().includes(lowerCaseSearch))
+      );
+    }
+
+    // Apply group filter
+    if (selectedGroup) {
+      filtered = filtered.filter(user =>
+        user.groups && user.groups.includes(selectedGroup)
       );
     }
     
@@ -218,7 +155,7 @@ export default function AdobeUsers() {
       orgSpecific: orgSpec,
       notOrgSpecific: notOrgSpec
     };
-  }, [adobeUsers.data, searchTerm]);
+  }, [adobeUsers.data, searchTerm, selectedGroup]);
   
   // Handle tab changes
   const handleTabChange = (event, newValue) => {
@@ -276,9 +213,7 @@ export default function AdobeUsers() {
   };
   
   // Loading state
-  const isLoadingComplete = adobeUsers.isLoading || 
-                           googleStaffUsersQuery.isLoading || 
-                           googleFreelanceUsersQuery.isLoading;
+  const isLoadingComplete = adobeUsers.isLoading || isDataLoading('googleUsers');
 
   if (isLoadingComplete) {
     return (
@@ -384,15 +319,14 @@ export default function AdobeUsers() {
         </Grid>
         
         {/* Search and Filter Bar */}
-        <Box sx={{ display: 'flex', mb: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', mb: 2, alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           <TextField
             placeholder="Search users..."
             variant="outlined"
             size="small"
-            fullWidth
             value={searchTerm}
             onChange={handleSearchChange}
-            sx={{ maxWidth: 400, mr: 2 }}
+            sx={{ minWidth: 300 }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -408,20 +342,43 @@ export default function AdobeUsers() {
               )
             }}
           />
-          
+
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel id="group-filter-label">Filter by Group</InputLabel>
+            <Select
+              labelId="group-filter-label"
+              id="group-filter"
+              value={selectedGroup}
+              label="Filter by Group"
+              onChange={(e) => {
+                setSelectedGroup(e.target.value);
+                setPage(0);
+              }}
+            >
+              <MenuItem value="">
+                <em>All Groups</em>
+              </MenuItem>
+              {allGroups.map((group) => (
+                <MenuItem key={group} value={group}>
+                  {group}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
           <Tooltip title="Filter Results">
-            <Badge 
-              color="primary" 
-              variant="dot" 
-              invisible={activeTab === 0 && !searchTerm}
+            <Badge
+              color="primary"
+              variant="dot"
+              invisible={activeTab === 0 && !searchTerm && !selectedGroup}
               max={9999}
             >
               <FilterIcon color="action" />
             </Badge>
           </Tooltip>
-          
-          {searchTerm && (
-            <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
+
+          {(searchTerm || selectedGroup) && (
+            <Typography variant="body2" color="text.secondary">
               {filteredUsers.length} matches found
             </Typography>
           )}
@@ -606,8 +563,13 @@ function UserListItem({ user, isLast, googleUser }) {
           
           <Box sx={{ flexGrow: 1 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle1" fontWeight="medium">
-                {`${user.firstname || ''} ${user.lastname || ''}`}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Typography variant="subtitle1" fontWeight="medium">
+                  {`${user.firstname || ''} ${user.lastname || ''}`}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {user.email || user.username}
+                </Typography>
                 {(() => {
                   try {
                     const isFreelance = googleUser?.organizations &&
@@ -621,7 +583,7 @@ function UserListItem({ user, isLast, googleUser }) {
                           size="small"
                           color="error"
                           variant="outlined"
-                          sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                          sx={{ height: 20, fontSize: '0.7rem' }}
                         />
                       );
                     }
@@ -631,28 +593,45 @@ function UserListItem({ user, isLast, googleUser }) {
                     return null;
                   }
                 })()}
-              </Typography>
-              
+              </Box>
+
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <Chip 
-                  size="small" 
+                <Chip
+                  size="small"
                   color={user.status === 'active' ? 'success' : 'default'}
                   label={user.status === 'active' ? 'Active' : 'Inactive'}
                   variant={user.status === 'active' ? 'filled' : 'outlined'}
                 />
-                <Chip 
-                  size="small" 
+                <Chip
+                  size="small"
                   color={user.type === 'adobeID' ? 'warning' : 'primary'}
                   label={user.type}
                   variant="outlined"
                 />
               </Box>
             </Box>
-            
-            <Typography variant="body2" color="text.secondary">
-              {user.email || user.username}
-            </Typography>
-            
+
+            {/* Groups section - always visible */}
+            {user.groups && user.groups.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Groups ({user.groups.length})
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {user.groups.map((group, idx) => (
+                    <Chip
+                      key={`${group}-${idx}`}
+                      size="small"
+                      label={group}
+                      color="primary"
+                      variant="outlined"
+                      sx={{ height: 20, fontSize: '0.7rem' }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
             {expanded && (
               <>
                 <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -846,27 +825,6 @@ function UserListItem({ user, isLast, googleUser }) {
                   }
                 })()}
               </>
-            )}
-            
-            {/* Groups section */}
-            {expanded && user.groups && user.groups.length > 0 && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Groups ({user.groups.length})
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {user.groups.map((group, idx) => (
-                    <Chip 
-                      key={`${group}-${idx}`}
-                      size="small" 
-                      label={group} 
-                      color="primary"
-                      variant="outlined"
-                      sx={{ mb: 0.5 }}
-                    />
-                  ))}
-                </Box>
-              </Box>
             )}
           </Box>
         </Box>

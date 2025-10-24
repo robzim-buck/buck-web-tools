@@ -1,10 +1,13 @@
 import {
   Chip, Typography, Paper, Grid, Box, Button, Dialog, DialogTitle,
-  DialogContent, DialogActions, Avatar, Tooltip
+  DialogContent, DialogActions, Avatar, Tooltip, Table, TableBody,
+  TableCell, TableContainer, TableHead, TableRow, ToggleButton,
+  ToggleButtonGroup, TextField, TableSortLabel
 } from '@mui/material';
 import CircularProgress from '@mui/material/CircularProgress';
-import { useQueries } from "@tanstack/react-query";
-import { useProtectedApiGet } from '../hooks/useApi';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import TableRowsIcon from '@mui/icons-material/TableRows';
+import { useAppData } from '../contexts/AppDataProvider';
 import uuid from 'react-uuid';
 import { useState, useMemo } from 'react';
 
@@ -13,6 +16,10 @@ export default function ParsecUsers({ name = "Parsec" }) {
   const [userMachines, setUserMachines] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
+  const [sortColumn, setSortColumn] = useState('email'); // Column to sort by
+  const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+  const [filterText, setFilterText] = useState(''); // Filter text
 
   // Get user initials for avatar fallback
   const getUserInitials = (user) => {
@@ -39,103 +46,10 @@ export default function ParsecUsers({ name = "Parsec" }) {
     return 'PU'; // Parsec User - final fallback
   };
 
-  // Fetch Parsec users
-  const [parsecUsers] = useQueries({
-    queries: [
-      {
-        queryKey: ["parsecUsers"],
-        queryFn: () => fetch("https://laxcoresrv.buck.local:8000/parsecinfo/category?_category=members")
-          .then((res) => res.json()),
-      }
-    ]
-  });
-
-  // Fetch Google staff users
-  const googleStaffUsersQuery = useProtectedApiGet('/google/buckgoogleusers', {
-    queryParams: { status: 'active', emp_type: 'Staff' },
-    queryConfig: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false,
-      retry: 2,
-      retryDelay: 1000
-    }
-  });
-
-  // Fetch Google freelance users
-  const googleFreelanceUsersQuery = useProtectedApiGet('/google/buckgoogleusers', {
-    queryParams: { status: 'active', emp_type: 'Freelance' },
-    queryConfig: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      retry: 2,
-      retryDelay: 1000
-    },
-    dependencies: ['freelance'] // Add to query key to differentiate from staff query
-  });
-
-  // Combine Google users data
-  const googleUsers = useMemo(() => {
-    if (googleStaffUsersQuery.isLoading || googleFreelanceUsersQuery.isLoading) {
-      console.log("Google users still loading...");
-      return [];
-    }
-
-    if (googleStaffUsersQuery.error || googleFreelanceUsersQuery.error) {
-      console.error("Error fetching Google users:", {
-        staffError: googleStaffUsersQuery.error,
-        freelanceError: googleFreelanceUsersQuery.error
-      });
-      return [];
-    }
-
-    const staffData = googleStaffUsersQuery.data || [];
-    const freelanceData = googleFreelanceUsersQuery.data || [];
-
-    console.log("Raw Google data:", {
-      staffCount: staffData.length,
-      freelanceCount: freelanceData.length,
-      staffSample: staffData.slice(0, 2),
-      freelanceSample: freelanceData.slice(0, 2)
-    });
-
-    // Combine both sets of users
-    const data = [...staffData, ...freelanceData];
-    console.log("Combined Google users:", data.length);
-    
-    // Check if users have photo URLs
-    const usersWithPhotos = data.filter(user => user?.thumbnailPhotoUrl);
-    console.log(`Users with photos: ${usersWithPhotos.length} out of ${data.length}`);
-    
-    if (usersWithPhotos.length > 0) {
-      console.log("Sample user with photo:", usersWithPhotos[0]);
-    }
-
-    return data;
-  }, [googleStaffUsersQuery.data, googleFreelanceUsersQuery.data,
-      googleStaffUsersQuery.isLoading, googleFreelanceUsersQuery.isLoading,
-      googleStaffUsersQuery.error, googleFreelanceUsersQuery.error]);
-
-  // Create Google user lookup by email
-  const googleUsersByEmail = useMemo(() => {
-    if (!googleUsers.length) return {};
-
-    const emailMap = {};
-
-    googleUsers.forEach(user => {
-      if (user?.primaryEmail) {
-        emailMap[user.primaryEmail.toLowerCase()] = user;
-
-        // Also store by username part only (before the @) for flexible matching
-        const username = user.primaryEmail.split('@')[0].toLowerCase();
-        if (username) {
-          emailMap[username] = user;
-        }
-      }
-    });
-
-    console.log(`Created Google user map with ${Object.keys(emailMap).length} entries`);
-    return emailMap;
-  }, [googleUsers]);
+  // Get data from context
+  const { data: appData, queries, isDataLoading } = useAppData();
+  const parsecUsers = queries.parsecUsers;
+  const googleUsersByEmail = appData.googleUsersByEmail || {};
 
   // Helper function to get Google user for a Parsec user
   const getGoogleUserForParsecUser = (parsecUser) => {
@@ -180,7 +94,12 @@ export default function ParsecUsers({ name = "Parsec" }) {
     setSelectedUserEmail(email);
     try {
       // Fetch all Parsec machines from the parsecreport endpoint
-      const response = await fetch(`https://laxcoresrv.buck.local:8000/parsecreport`);
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/parsec/parsecreport`,
+                {
+                          headers: {
+                    "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo",
+                    "Content-type": "application/json"
+                }},);
       if (!response.ok) {
         throw new Error(`API responded with status ${response.status}`);
       }
@@ -218,16 +137,126 @@ export default function ParsecUsers({ name = "Parsec" }) {
     setDialogOpen(false);
   };
 
+  // Handle column sorting
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Filter and sort data
+  const filteredAndSortedData = useMemo(() => {
+    if (!parsecUsers.data) return [];
+
+    // First, filter the data
+    let filtered = parsecUsers.data;
+    if (filterText) {
+      const lowercaseFilter = filterText.toLowerCase();
+      filtered = parsecUsers.data.filter((item) => {
+        return (
+          item.name?.toLowerCase().includes(lowercaseFilter) ||
+          item.email?.toLowerCase().includes(lowercaseFilter) ||
+          item.user_id?.toString().includes(lowercaseFilter) ||
+          item.team_app_rule?.name?.toLowerCase().includes(lowercaseFilter) ||
+          item.group_id?.toString().includes(lowercaseFilter)
+        );
+      });
+    }
+
+    // Then, sort the filtered data
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortColumn) {
+        case 'name':
+          aValue = a.name?.toLowerCase() || '';
+          bValue = b.name?.toLowerCase() || '';
+          break;
+        case 'email':
+          aValue = a.email?.toLowerCase() || '';
+          bValue = b.email?.toLowerCase() || '';
+          break;
+        case 'user_id':
+          aValue = a.user_id || 0;
+          bValue = b.user_id || 0;
+          break;
+        case 'rule':
+          aValue = a.team_app_rule?.name?.toLowerCase() || '';
+          bValue = b.team_app_rule?.name?.toLowerCase() || '';
+          break;
+        case 'group_id':
+          aValue = a.group_id || 0;
+          bValue = b.group_id || 0;
+          break;
+        case 'created_at':
+          aValue = a.created_at || '';
+          bValue = b.created_at || '';
+          break;
+        case 'last_connected_at':
+          aValue = a.last_connected_at || '';
+          bValue = b.last_connected_at || '';
+          break;
+        default:
+          aValue = a.email?.toLowerCase() || '';
+          bValue = b.email?.toLowerCase() || '';
+      }
+
+      if (typeof aValue === 'string') {
+        return sortDirection === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      } else {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+    });
+
+    return sorted;
+  }, [parsecUsers.data, filterText, sortColumn, sortDirection]);
+
   if (parsecUsers.isLoading) return <CircularProgress />;
   if (parsecUsers.error) return `An error has occurred: ${parsecUsers.error.message}`;
-  
+
   if (parsecUsers.data) {
-    const sortedData = parsecUsers.data.sort((a, b) => a.email.localeCompare(b.email));
+    const sortedData = filteredAndSortedData;
     
     return (
       <Box sx={{ p: 2 }}>
-        <Typography variant="h3" sx={{ mb: 3 }}>{name} Users</Typography>
-        <Grid container spacing={2} columns={4}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h3">{name} Users</Typography>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <TextField
+              label="Filter"
+              variant="outlined"
+              size="small"
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              placeholder="Search by name, email, ID..."
+              sx={{ minWidth: 250 }}
+            />
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newView) => newView && setViewMode(newView)}
+              aria-label="view mode"
+              size="small"
+            >
+              <ToggleButton value="card" aria-label="card view">
+                <ViewModuleIcon />
+              </ToggleButton>
+              <ToggleButton value="table" aria-label="table view">
+                <TableRowsIcon />
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        </Box>
+
+        {viewMode === 'card' ? (
+          <Grid container spacing={2} columns={4}>
           {sortedData.map((item) => (
             <Grid item xs={1} key={uuid()}>
               <Paper variant="outlined" sx={{ p: 2 }}>
@@ -358,6 +387,170 @@ export default function ParsecUsers({ name = "Parsec" }) {
             </Grid>
           ))}
         </Grid>
+        ) : (
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === 'name'}
+                      direction={sortColumn === 'name' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('name')}
+                    >
+                      User
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === 'email'}
+                      direction={sortColumn === 'email' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('email')}
+                    >
+                      Email
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === 'user_id'}
+                      direction={sortColumn === 'user_id' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('user_id')}
+                    >
+                      User ID
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === 'rule'}
+                      direction={sortColumn === 'rule' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('rule')}
+                    >
+                      Rule
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === 'group_id'}
+                      direction={sortColumn === 'group_id' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('group_id')}
+                    >
+                      Group ID
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === 'created_at'}
+                      direction={sortColumn === 'created_at' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('created_at')}
+                    >
+                      Created
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>
+                    <TableSortLabel
+                      active={sortColumn === 'last_connected_at'}
+                      direction={sortColumn === 'last_connected_at' ? sortDirection : 'asc'}
+                      onClick={() => handleSort('last_connected_at')}
+                    >
+                      Last Connected
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedData.map((item) => {
+                  const googleUser = getGoogleUserForParsecUser(item);
+                  const isFreelance = googleUser?.organizations &&
+                                      googleUser.organizations[0]?.costCenter &&
+                                      googleUser.organizations[0].costCenter.toLowerCase() === 'freelance';
+
+                  return (
+                    <TableRow key={uuid()} hover>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {googleUser?.thumbnailPhotoUrl ? (
+                            <Tooltip title={isFreelance ? "Freelancer - Google profile photo" : "Google profile photo"}>
+                              <Avatar
+                                src={googleUser.thumbnailPhotoUrl}
+                                alt={getUserInitials(item)}
+                                sx={{
+                                  width: 32,
+                                  height: 32,
+                                  border: isFreelance
+                                    ? '2px solid #f50057'
+                                    : '2px solid #8c9eff',
+                                  bgcolor: 'primary.main',
+                                  color: 'white',
+                                  fontSize: '0.875rem',
+                                  fontWeight: 'bold'
+                                }}
+                              >
+                                {getUserInitials(item)}
+                              </Avatar>
+                            </Tooltip>
+                          ) : (
+                            <Avatar
+                              sx={{
+                                width: 32,
+                                height: 32,
+                                bgcolor: 'primary.main',
+                                color: 'white',
+                                border: '2px solid #8c9eff',
+                                fontSize: '0.875rem',
+                                fontWeight: 'bold'
+                              }}
+                            >
+                              {getUserInitials(item)}
+                            </Avatar>
+                          )}
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              {item.name}
+                            </Typography>
+                            {isFreelance && (
+                              <Chip
+                                label="Freelance"
+                                size="small"
+                                color="error"
+                                variant="outlined"
+                                sx={{ height: 16, fontSize: '0.65rem' }}
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                      </TableCell>
+                      <TableCell>{item.email}</TableCell>
+                      <TableCell>{item.user_id}</TableCell>
+                      <TableCell>
+                        <Chip
+                          variant="outlined"
+                          color="success"
+                          label={item.team_app_rule.name}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>{item.group_id}</TableCell>
+                      <TableCell>{item.created_at ? item.created_at.split('T')[0] : 'N/A'}</TableCell>
+                      <TableCell>{item.last_connected_at ? item.last_connected_at.split('T')[0] : 'N/A'}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          size="small"
+                          onClick={() => fetchUserMachines(item.email)}
+                          disabled={loading && selectedUserEmail === item.email}
+                        >
+                          {loading && selectedUserEmail === item.email ? 'Loading...' : 'View Machines'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
 
         <Dialog 
           open={dialogOpen} 

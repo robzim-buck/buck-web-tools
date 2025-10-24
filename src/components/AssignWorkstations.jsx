@@ -1,16 +1,14 @@
 import {
   Typography, Paper, Grid, Box, Button, TextField, Autocomplete,
   CircularProgress, Alert, Snackbar, Chip, Card, CardContent,
-  List, ListItem, ListItemText, IconButton, Pagination,
-  Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Switch
+  List, ListItem, ListItemText, IconButton,
+  Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useProtectedApiGet } from '../hooks/useApi';
+import { useAppData } from '../contexts/AppDataProvider';
 import CompositeMachineInfo from './CompositeMachineInfo';
 
 export default function AssignWorkstations({ name = "Assign Workstations" }) {
@@ -19,231 +17,36 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
   const [selectedParsecHost, setSelectedParsecHost] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, assignment: null });
+  const [showMachineInfo, setShowMachineInfo] = useState(false);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Machine list filtering and sorting state
-  const [machineNameFilter, setMachineNameFilter] = useState('');
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
-  const [showParsecHostsOnly, setShowParsecHostsOnly] = useState(false);
+  // Get data from context (pre-fetched)
+  const { queries } = useAppData();
 
-  // Fetch users from Okta (ACTIVE users for assignments)
-  const usersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
-    queryParams: { 
-      _category: 'users', 
-      _att: 'status', 
-      _comparison: 'eq', 
-      _match: 'ACTIVE' 
-    },
-    queryConfig: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      retry: 2
-    }
-  });
+  // Use Okta users from context
+  const usersQuery = queries.oktaUsers;
 
-  // Fetch machines from /buckldap_machineinfo
-  const machinesQuery = useProtectedApiGet('/buckldap_raw_machineinfo', {
-    queryConfig: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      retry: 2
-    }
-  });
+  // Use machines from context (pre-fetched)
+  const machinesQuery = queries.ldapRawMachineInfo;
 
   // Fetch current assignments
-  const assignmentsQuery = useQuery({
-    queryKey: ['assignments'],
-    queryFn: async () => {
-      console.log('Fetching assignments...');
-      try {
-        const response = await fetch('https://laxcoresrv.buck.local:8000/assignments/Assignments', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-          }
-        });
-
-        console.log('Assignments API response status:', response.status);
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Assignments API response data:', data);
-        return data;
-      } catch (error) {
-        console.error('Error fetching assignments:', error);
-        throw error;
-      }
-    },
-    staleTime: 30 * 1000,
-    refetchOnWindowFocus: true,
-    retry: 2
+  const assignmentsQuery = useProtectedApiGet('/assignments/Assignments', {
+    queryConfig: {
+      staleTime: 30 * 1000,
+      refetchOnWindowFocus: true,
+      retry: 2
+    }
   });
 
-  // Fetch Parsec machines data - trying both protected and unprotected
-  const parsecMachinesQuery = useQuery({
-    queryKey: ['parsecMachines'],
-    queryFn: async () => {
-      console.log('Fetching Parsec machines from API...');
-      try {
-        // Try protected endpoint first
-        const response = await fetch('https://laxcoresrv.buck.local:8000/parsec/parsecinfo/category?_category=machines', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-          }
-        });
-
-        console.log('Parsec API response status:', response.status);
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Parsec API response data:', data);
-        return data;
-      } catch (error) {
-        console.error('Error fetching Parsec machines:', error);
-        throw error;
-      }
+  // Fetch Parsec machines data (for assignment dropdowns only)
+  const parsecMachinesQuery = useProtectedApiGet('/parsec/parsecinfo/category', {
+    queryParams: {
+      _category: 'machines'
     },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: 2
-  });
-
-  // Fetch Salt machine info data
-  const saltMachineInfoQuery = useQuery({
-    queryKey: ['saltMachineInfo'],
-    queryFn: async () => {
-      try {
-        const res = await fetch('https://laxcoresrv.buck.local:8000/salt/machine_info', {
-          mode: 'cors',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-          }
-        });
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
-        }
-        return res.json();
-      } catch (error) {
-        console.error("Error fetching Salt machine info:", error);
-        throw error;
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: 2
-  });
-
-  // Fetch Salt ping info
-  const saltPingInfoQuery = useQuery({
-    queryKey: ['saltping'],
-    queryFn: async () => {
-      try {
-        const res = await fetch('https://laxcoresrv.buck.local:8000/salt/ping', {
-          method: 'POST',
-          mode: 'cors',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-          }
-        });
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
-        }
-        return res.json();
-      } catch (error) {
-        console.error("Error fetching Salt ping info:", error);
-        throw error;
-      }
-    },
-    staleTime: 60 * 1000, // 1 minute since ping status changes frequently
-    refetchOnWindowFocus: false,
-    retry: 2
-  });
-
-  // Fetch JAMF computers data
-  const jamfComputersQuery = useQuery({
-    queryKey: ['jamfcomputers'],
-    queryFn: async () => {
-      try {
-        const res = await fetch("https://laxcoresrv.buck.local:8000/mongo/jamf_computers_from_mongo?count=999", {
-          mode: 'cors',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-          }
-        });
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
-        }
-        return res.json();
-      } catch (error) {
-        console.error("Error fetching JAMF computers:", error);
-        throw error;
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: 2
-  });
-
-  // Fetch Parsec report data (comprehensive version for CompositeMachineInfo)
-  const parsecReportQuery = useQuery({
-    queryKey: ['parsecreport'],
-    queryFn: async () => {
-      try {
-        const res = await fetch("https://laxcoresrv.buck.local:8000/parsec/parsecreport", {
-          mode: 'cors',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        });
-        if (!res.ok) {
-          // Handle 422 specifically as a non-critical error
-          if (res.status === 422) {
-            console.warn('Parsec report endpoint returned 422 - returning empty data');
-            return null; // Return null instead of throwing
-          }
-          throw new Error(`HTTP error! Status: ${res.status}`);
-        }
-        return res.json();
-      } catch (error) {
-        console.error("Error fetching Parsec report:", error);
-        // For 422 or network errors, return null instead of throwing
-        if (error.message && error.message.includes('422') || error.name === 'TypeError') {
-          console.warn('Parsec report failed, continuing without data');
-          return null;
-        }
-        throw error;
-      }
-    },
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: (failureCount, error) => {
-      // Don't retry 422 errors
-      if (error.message && error.message.includes('422')) {
-        return false;
-      }
-      return failureCount < 2;
+    queryConfig: {
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 2
     }
   });
 
@@ -685,22 +488,8 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
           console.log(`Using fallback for machine name: ${machineName}`);
         }
 
-        // Find matching Salt data
-        const saltMachineData = saltMachineInfoQuery.data ?
-          Object.values(saltMachineInfoQuery.data).find(saltData =>
-            saltData.localhost && saltData.localhost.toLowerCase() === machineName.toLowerCase()
-          ) : null;
-
-        // Find matching Parsec host data - use raw query data to avoid circular dependency
-        const parsecData = parsecMachinesQuery.data;
-        const parsecHostData = parsecData && Array.isArray(parsecData) ?
-          parsecData.find(parsecHost =>
-            parsecHost && (parsecHost.host || parsecHost.hostname || parsecHost.host_name || parsecHost.name) &&
-            (parsecHost.host || parsecHost.hostname || parsecHost.host_name || parsecHost.name).toLowerCase() === machineName.toLowerCase()
-          ) : null;
-
-        // Prioritize Salt OS information over AD OS information
-        const saltOSInfo = saltMachineData?.osfullname || saltMachineData?.os;
+        // Note: Salt and Parsec data enrichment removed since CompositeMachineInfo handles its own data
+        const saltOSInfo = null;
 
         // LDAP fields might be arrays, so handle both array and string formats
         const getFieldValue = (field) => {
@@ -740,11 +529,9 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
           console.log(`Machine ${machineName}:`, {
             rawMachine: machine,
             distinguishedName: machine.distinguishedName || machine.dn,
-            saltMachineData,
-            saltOSInfo,
             adOSInfo,
-            finalOS: saltOSInfo || adOSInfo || 'N/A',
-            osSource: saltOSInfo ? 'Salt' : (adOSInfo ? 'AD' : 'Unknown'),
+            finalOS: adOSInfo || 'N/A',
+            osSource: 'AD',
             dnInfo: dnInfo,
             parsedOUs: dnInfo.rawOUs,
             extractedLocation: dnInfo.location,
@@ -755,26 +542,18 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
         return {
           name: machineName,
           label: machineName,
-          operatingSystem: saltOSInfo || adOSInfo || 'N/A',
+          operatingSystem: adOSInfo || 'N/A',
           operatingSystemVersion: getFieldValue(machine.operatingSystemVersion) || getFieldValue(machine.osVersion) || 'N/A',
           distinguishedName: machine.distinguishedName || machine.dn || 'N/A',
-          // Add Salt data - use safe string extraction
+          // Simplified salt object with N/A values since CompositeMachineInfo handles detailed data
           salt: {
-            osVersion: getSafeStringValue(saltMachineData?.osfullname || saltMachineData?.os),
-            osArch: getSafeStringValue(saltMachineData?.osarch),
-            cpuModel: getSafeStringValue(saltMachineData?.cpu_model),
-            totalMemory: getSafeStringValue(saltMachineData?.mem_total),
-            uptime: getSafeStringValue(saltMachineData?.uptime),
-            numCpus: getSafeStringValue(saltMachineData?.num_cpus),
-            gpus: getSafeStringValue(saltMachineData?.gpus)
-          },
-          // Add Parsec data
-          parsec: {
-            isHost: !!parsecHostData,
-            hostId: parsecHostData?.host_id || parsecHostData?.hostId || parsecHostData?.id || parsecHostData?._id || null,
-            online: parsecHostData?.machine_online || parsecHostData?.online || parsecHostData?.status === 'online' || false,
-            lastConnected: parsecHostData?.last_connected || parsecHostData?.lastConnected || null,
-            guests: parsecHostData?.guests || parsecHostData?.guest_count || 0
+            osVersion: 'N/A',
+            osArch: 'N/A',
+            cpuModel: 'N/A',
+            totalMemory: 'N/A',
+            uptime: 'N/A',
+            numCpus: 'N/A',
+            gpus: 'N/A'
           },
           // Add DN parsed information
           dnInfo: {
@@ -786,13 +565,13 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
             rawDCs: dnInfo.rawDCs
           },
           // Keep track of data sources for debugging
-          osSource: saltOSInfo ? 'Salt' : (adOSInfo ? 'AD' : 'Unknown')
+          osSource: 'AD'
         };
       });
 
     console.log('Processed machines:', processed);
     return processed;
-  }, [machinesQuery.data, saltMachineInfoQuery.data, parsecMachinesQuery.data]);
+  }, [machinesQuery.data]);
 
   // Process Parsec machines data
   const parsecMachinesList = useMemo(() => {
@@ -867,47 +646,6 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
     );
   }, [assignmentsList, selectedUser]);
 
-  // Filter and sort machines for the Machine Information section
-  const filteredAndSortedMachines = useMemo(() => {
-    // Ensure we have a valid array to work with
-    if (!Array.isArray(machinesList)) {
-      console.warn('machinesList is not an array:', machinesList);
-      return [];
-    }
-
-    let filtered = machinesList;
-
-    // Apply active filter if enabled
-    if (showActiveOnly) {
-      filtered = filtered.filter(machine =>
-        machine && machine.distinguishedName && machine.distinguishedName !== 'N/A'
-      );
-    }
-
-    // Apply Parsec hosts filter if enabled
-    if (showParsecHostsOnly) {
-      filtered = filtered.filter(machine =>
-        machine && machine.parsec && machine.parsec.isHost
-      );
-    }
-
-    // Apply name filter if set
-    if (machineNameFilter && machineNameFilter.trim()) {
-      filtered = filtered.filter(machine =>
-        machine && machine.name && machine.name.toLowerCase().includes(machineNameFilter.toLowerCase())
-      );
-    }
-
-    // Apply sorting
-    const sorted = [...filtered].sort((a, b) => {
-      const nameA = (a && a.name) || '';
-      const nameB = (b && b.name) || '';
-      const comparison = nameA.localeCompare(nameB);
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
-
-    return sorted;
-  }, [machinesList, machineNameFilter, sortOrder, showActiveOnly, showParsecHostsOnly]);
 
   // Filter available machines (not already assigned to the selected user)
   const availableMachines = useMemo(() => {
@@ -1017,8 +755,8 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
   };
 
 
-  const isLoading = usersQuery.isLoading || machinesQuery.isLoading || assignmentsQuery.isLoading || parsecMachinesQuery.isLoading || saltMachineInfoQuery.isLoading || saltPingInfoQuery.isLoading || jamfComputersQuery.isLoading || parsecReportQuery.isLoading;
-  const hasError = usersQuery.error || machinesQuery.error || assignmentsQuery.error || parsecMachinesQuery.error || saltMachineInfoQuery.error || saltPingInfoQuery.error || jamfComputersQuery.error || (parsecReportQuery.error && !(parsecReportQuery.error.message && parsecReportQuery.error.message.includes('422')));
+  const isLoading = usersQuery.isLoading || machinesQuery.isLoading || assignmentsQuery.isLoading || parsecMachinesQuery.isLoading;
+  const hasError = usersQuery.error || machinesQuery.error || assignmentsQuery.error || parsecMachinesQuery.error;
 
   // Debug logging
   console.log('AssignWorkstations loading states:', {
@@ -1026,10 +764,6 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
     machinesQuery: { isLoading: machinesQuery.isLoading, error: machinesQuery.error, data: !!machinesQuery.data },
     assignmentsQuery: { isLoading: assignmentsQuery.isLoading, error: assignmentsQuery.error, data: !!assignmentsQuery.data },
     parsecMachinesQuery: { isLoading: parsecMachinesQuery.isLoading, error: parsecMachinesQuery.error, data: !!parsecMachinesQuery.data },
-    saltMachineInfoQuery: { isLoading: saltMachineInfoQuery.isLoading, error: saltMachineInfoQuery.error, data: !!saltMachineInfoQuery.data },
-    saltPingInfoQuery: { isLoading: saltPingInfoQuery.isLoading, error: saltPingInfoQuery.error, data: !!saltPingInfoQuery.data },
-    jamfComputersQuery: { isLoading: jamfComputersQuery.isLoading, error: jamfComputersQuery.error, data: !!jamfComputersQuery.data },
-    parsecReportQuery: { isLoading: parsecReportQuery.isLoading, error: parsecReportQuery.error, data: !!parsecReportQuery.data },
     isLoading,
     hasError
   });
@@ -1049,16 +783,12 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '400px' }}>
         <CircularProgress />
         <Box sx={{ ml: 2 }}>
-          <Typography variant="body2">Loading data...</Typography>
+          <Typography variant="body2">Loading Assignments from Database, LDAP Users and Hosts, and Parsec Hosts...</Typography>
           <Typography variant="caption" color="text.secondary">
             Users: {usersQuery.isLoading ? 'Loading...' : 'Done'} |
             Machines: {machinesQuery.isLoading ? 'Loading...' : 'Done'} |
             Assignments: {assignmentsQuery.isLoading ? 'Loading...' : 'Done'} |
-            Parsec: {parsecMachinesQuery.isLoading ? 'Loading...' : 'Done'} |
-            Salt: {saltMachineInfoQuery.isLoading ? 'Loading...' : 'Done'} |
-            SaltPing: {saltPingInfoQuery.isLoading ? 'Loading...' : 'Done'} |
-            JAMF: {jamfComputersQuery.isLoading ? 'Loading...' : 'Done'} |
-            ParsecReport: {parsecReportQuery.isLoading ? 'Loading...' : 'Done'}
+            Parsec Hosts: {parsecMachinesQuery.isLoading ? 'Loading...' : 'Done'}
           </Typography>
         </Box>
       </Box>
@@ -1088,32 +818,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
         )}
         {parsecMachinesQuery.error && (
           <Alert severity="error" sx={{ mb: 1 }} variant="outlined">
-            Parsec Error: {parsecMachinesQuery.error.message}
-          </Alert>
-        )}
-        {saltMachineInfoQuery.error && (
-          <Alert severity="error" sx={{ mb: 1 }} variant="outlined">
-            Salt Machine Info Error: {saltMachineInfoQuery.error.message}
-          </Alert>
-        )}
-        {saltPingInfoQuery.error && (
-          <Alert severity="error" sx={{ mb: 1 }} variant="outlined">
-            Salt Ping Error: {saltPingInfoQuery.error.message}
-          </Alert>
-        )}
-        {jamfComputersQuery.error && (
-          <Alert severity="error" sx={{ mb: 1 }} variant="outlined">
-            JAMF Error: {jamfComputersQuery.error.message}
-          </Alert>
-        )}
-        {parsecReportQuery.error && !(parsecReportQuery.error.message && parsecReportQuery.error.message.includes('422')) && (
-          <Alert severity="error" sx={{ mb: 1 }} variant="outlined">
-            Parsec Report Error: {parsecReportQuery.error.message}
-          </Alert>
-        )}
-        {parsecReportQuery.error && parsecReportQuery.error.message && parsecReportQuery.error.message.includes('422') && (
-          <Alert severity="warning" sx={{ mb: 1 }} variant="outlined">
-            Parsec Report Unavailable (422) - Continuing without Parsec report data
+            Parsec Hosts Error: {parsecMachinesQuery.error.message}
           </Alert>
         )}
       </Box>
@@ -1360,7 +1065,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                       startIcon={<AddIcon />}
                       sx={{ height: '40px' }}
                     >
-                      Assign
+                      Assign in SQL Database
                     </Button>
                     <Button
                       variant="outlined"
@@ -1372,12 +1077,14 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                       startIcon={<AddIcon />}
                       sx={{ height: '40px' }}
                     >
-                      Assign In Parsec
+                      Assign In Parsec API
                     </Button>
                   </Box>
                 </Grid>
               </Grid>
-              
+              <Typography variant='h5'>
+                  NOTE: Assigning in SQL Database for Production Assignment is Separate from Assigning in Parsec for Parsec Software
+              </Typography>
               {selectedUser && userAssignments.length > 0 && (
                 <Box sx={{ mt: 3 }}>
                   <Typography variant="subtitle1" sx={{ mb: 1 }}>
@@ -1562,265 +1269,44 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
           </Card>
         </Grid>
 
-        {/* Composite Machine Information Panel */}
+        {/* Machine Info Panel Toggle Button */}
         <Grid size={12}>
-          <Box sx={{ p: 2, border: '2px solid #1976d2', borderRadius: 1, bgcolor: '#f8f9fa', mt: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold' }}>Machine Information</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography variant="body2">
-                  Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredAndSortedMachines.length)}-{Math.min(currentPage * itemsPerPage, filteredAndSortedMachines.length)} of {filteredAndSortedMachines.length} machines
-                </Typography>
-                <TextField
-                  select
-                  size="small"
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(Number(e.target.value));
-                    setCurrentPage(1); // Reset to first page when changing items per page
-                  }}
-                  slotProps={{ select: { native: true } }}
-                  sx={{ minWidth: 100 }}
-                >
-                  <option value={10}>10 per page</option>
-                  <option value={25}>25 per page</option>
-                  <option value={50}>50 per page</option>
-                  <option value={100}>100 per page</option>
-                </TextField>
-              </Box>
-            </Box>
-
-            {/* Filter and Sort Controls */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-              <TextField
-                label="Filter by machine name"
-                value={machineNameFilter}
-                onChange={(e) => {
-                  setMachineNameFilter(e.target.value);
-                  setCurrentPage(1); // Reset to first page when filtering
-                }}
-                size="small"
-                sx={{ minWidth: 250 }}
-                placeholder="Type to filter machines..."
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showActiveOnly}
-                    onChange={(e) => {
-                      setShowActiveOnly(e.target.checked);
-                      setCurrentPage(1); // Reset to first page when filtering
-                    }}
-                    size="small"
-                  />
-                }
-                label="Active machines only"
-                sx={{ minWidth: 150 }}
-              />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showParsecHostsOnly}
-                    onChange={(e) => {
-                      setShowParsecHostsOnly(e.target.checked);
-                      setCurrentPage(1); // Reset to first page when filtering
-                    }}
-                    size="small"
-                  />
-                }
-                label="Parsec hosts only"
-                sx={{ minWidth: 150 }}
-              />
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={sortOrder === 'asc' ? <ArrowUpwardIcon /> : <ArrowDownwardIcon />}
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                sx={{ minWidth: 140 }}
-              >
-                Sort by Name ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
-              </Button>
-              {(machineNameFilter || showActiveOnly || showParsecHostsOnly) && (
+          <Card>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h5">Machine Information</Typography>
                 <Button
-                  variant="text"
-                  size="small"
-                  onClick={() => {
-                    setMachineNameFilter('');
-                    setShowActiveOnly(false);
-                    setShowParsecHostsOnly(false);
-                    setCurrentPage(1);
-                  }}
+                  variant={showMachineInfo ? "contained" : "outlined"}
+                  color="primary"
+                  onClick={() => setShowMachineInfo(!showMachineInfo)}
+                  sx={{ minWidth: '200px' }}
                 >
-                  Clear All Filters
+                  {showMachineInfo ? 'Hide Machine Info' : 'Show Machine Info'}
                 </Button>
-              )}
-            </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
 
-            {/* Temporarily comment out CompositeMachineInfo to test basic rendering */}
-            {false && (
+        {/* Composite Machine Information Panel - Only show when toggled */}
+        {showMachineInfo && (
+          <Grid size={12}>
+            <Box sx={{ p: 2, border: '2px solid #1976d2', borderRadius: 1, bgcolor: '#f8f9fa' }}>
+              {/* CompositeMachineInfo Component - Pass pre-fetched data as props */}
               <CompositeMachineInfo
                 showOnlyAllSources={true}
                 dense={true}
-                parsecInfoData={parsecReportQuery.data}
-                jamfComputersData={jamfComputersQuery.data}
-                machineInfoFromLDAPData={machinesQuery.data}
-                saltMachineInfoData={saltMachineInfoQuery.data}
-                saltPingInfoData={saltPingInfoQuery.data}
-                isLoading={isLoading}
-                hasError={hasError}
-              />
-            )}
-
-            {/* Debug info */}
-            <Box sx={{ mb: 2, p: 1, bgcolor: '#f0f0f0', borderRadius: 1 }}>
-              <Typography variant="caption">
-                Debug: filteredAndSortedMachines.length = {filteredAndSortedMachines.length},
-                currentPage = {currentPage},
-                itemsPerPage = {itemsPerPage},
-                slice range = {(currentPage - 1) * itemsPerPage} to {currentPage * itemsPerPage}
-                {machineNameFilter && `, filter: "${machineNameFilter}"`}
-                {showActiveOnly && `, active only: true`}
-                {showParsecHostsOnly && `, parsec hosts only: true`}
-                , sort: {sortOrder}
-              </Typography>
-            </Box>
-
-            {/* Paginated list of machines */}
-            <Box sx={{ mb: 2 }}>
-              {filteredAndSortedMachines.length > 0 ? (
-                filteredAndSortedMachines
-                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                  .map((machine, index) => (
-                    <Box key={index} sx={{ p: 2, borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
-                          {machine.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          OS: {machine.operatingSystem && machine.operatingSystem !== 'N/A' ? machine.operatingSystem : 'N/A'}
-                          {machine.osSource && machine.osSource !== 'Unknown' && machine.operatingSystem && machine.operatingSystem !== 'N/A' && (
-                            <Chip
-                              size="small"
-                              label={machine.osSource}
-                              variant="outlined"
-                              color={machine.osSource === 'Salt' ? 'primary' : 'default'}
-                              sx={{ ml: 1, height: '16px', fontSize: '0.6rem' }}
-                            />
-                          )}
-                        </Typography>
-                        {/* Debug info for first few machines - temporarily commented out
-                        {index < 3 && (
-                          <Typography variant="caption" color="error" sx={{ display: 'block', fontSize: '0.6rem' }}>
-                            Debug: OS="{machine.operatingSystem}", Source="{machine.osSource}", Salt="{machine.salt?.osVersion}"
-                          </Typography>
-                        )}
-                        */}
-                        {machine.salt && machine.salt.osArch !== 'N/A' && (
-                          <Typography variant="caption" color="text.secondary">
-                            Architecture: {machine.salt.osArch}
-                          </Typography>
-                        )}
-                        {machine.salt && machine.salt.cpuModel !== 'N/A' && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            CPU: {machine.salt.cpuModel.split(' ').slice(0, 4).join(' ')}
-                          </Typography>
-                        )}
-                        {/* DN Information */}
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
-                          {machine.dnInfo.location !== 'Unknown' && (
-                            <Chip
-                              size="small"
-                              label={`📍 ${machine.dnInfo.location}`}
-                              variant="outlined"
-                              color="default"
-                              sx={{ height: '20px', fontSize: '0.65rem' }}
-                            />
-                          )}
-                          {machine.dnInfo.type !== 'Unknown' && (
-                            <Chip
-                              size="small"
-                              label={machine.dnInfo.type}
-                              variant="outlined"
-                              color={
-                                machine.dnInfo.type === 'SERVER' ? 'error' :
-                                machine.dnInfo.type === 'WORKSTATION' ? 'success' :
-                                machine.dnInfo.type === 'MAC' ? 'secondary' :
-                                machine.dnInfo.type === 'LINUX' ? 'warning' :
-                                machine.dnInfo.type === 'LAPTOP' ? 'info' :
-                                'info'
-                              }
-                              sx={{ height: '20px', fontSize: '0.65rem' }}
-                            />
-                          )}
-                          {machine.dnInfo.osFromDN !== 'Unknown' && (
-                            <Chip
-                              size="small"
-                              label={machine.dnInfo.osFromDN}
-                              variant="outlined"
-                              color="primary"
-                              sx={{ height: '20px', fontSize: '0.65rem' }}
-                            />
-                          )}
-                        </Box>
-                        {/* Debug: Show raw OUs for first few machines */}
-                        {index < 3 && machine.dnInfo.rawOUs.length > 0 && (
-                          <Typography variant="caption" color="text.disabled" sx={{ display: 'block', fontSize: '0.6rem', mt: 0.5 }}>
-                            Debug OUs: {machine.dnInfo.rawOUs.join(', ')}
-                          </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-                        <Chip
-                          size="small"
-                          label={machine.distinguishedName ? 'Active' : 'Unknown'}
-                          color={machine.distinguishedName ? 'success' : 'default'}
-                          variant="outlined"
-                        />
-                        {machine.parsec && machine.parsec.isHost && (
-                          <Chip
-                            size="small"
-                            label={`Parsec${machine.parsec.online ? ' (Online)' : ' (Offline)'}`}
-                            color={machine.parsec.online ? 'primary' : 'secondary'}
-                            variant="outlined"
-                            sx={{ fontSize: '0.6rem', height: '18px' }}
-                          />
-                        )}
-                      </Box>
-                    </Box>
-                  ))
-              ) : (
-                <Box sx={{ p: 4, textAlign: 'center', bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    {(machineNameFilter || showActiveOnly || showParsecHostsOnly) ?
-                      `No machines found${machineNameFilter ? ` matching "${machineNameFilter}"` : ''}${showActiveOnly ? ' (active only)' : ''}${showParsecHostsOnly ? ' (Parsec hosts only)' : ''}` :
-                      'No machines available to display'
-                    }
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {(machineNameFilter || showActiveOnly || showParsecHostsOnly) ?
-                      `Total machines: ${machinesList.length}, Filtered: ${filteredAndSortedMachines.length}` :
-                      `machinesList.length = ${machinesList.length}`
-                    }
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-
-            {/* Pagination Controls */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-              <Pagination
-                count={Math.ceil(filteredAndSortedMachines.length / itemsPerPage)}
-                page={currentPage}
-                onChange={(_, page) => setCurrentPage(page)}
-                color="primary"
-                showFirstButton
-                showLastButton
-                siblingCount={2}
-                boundaryCount={1}
+                parsecInfoData={queries.parsecReport.data}
+                jamfComputersData={queries.jamfMachineInfo.data}
+                machineInfoFromLDAPData={queries.ldapMachineInfo.data}
+                saltMachineInfoData={queries.saltMachineInfo.data}
+                saltPingInfoData={queries.saltPingInfo.data}
+                isLoading={queries.parsecReport.isLoading || queries.jamfMachineInfo.isLoading || queries.ldapMachineInfo.isLoading || queries.saltMachineInfo.isLoading || queries.saltPingInfo.isLoading}
+                hasError={queries.parsecReport.error || queries.jamfMachineInfo.error || queries.ldapMachineInfo.error || queries.saltMachineInfo.error || queries.saltPingInfo.error}
               />
             </Box>
-          </Box>
-        </Grid>
+          </Grid>
+        )}
       </Grid>
 
       {/* Delete Confirmation Dialog */}

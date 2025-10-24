@@ -1,13 +1,16 @@
 import { useState, useMemo } from 'react';
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { 
-  Typography, Box, Container, Grid, 
+import { useQuery } from "@tanstack/react-query";
+import { useProtectedApiGet } from '../hooks/useApi';
+import {
+  Typography, Box, Container, Grid,
   Card, CardContent, Chip, Divider,
   Paper, TextField, InputAdornment,
   Avatar, Tooltip, IconButton,
   Collapse, Button, CircularProgress, Alert, AlertTitle,
   Stack, Dialog, DialogTitle, DialogContent,
-  List, ListItem, ListItemText, ListItemAvatar
+  List, ListItem, ListItemText, ListItemAvatar,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  ToggleButton, ToggleButtonGroup, TableSortLabel
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -20,7 +23,13 @@ import {
   Person as PersonIcon,
   Info as InfoIcon,
   People as PeopleIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Download as DownloadIcon,
+  PersonRemove as PersonRemoveIcon,
+  PersonAdd as PersonAddIcon,
+  GroupAdd as GroupAddIcon,
+  ViewModule as ViewModuleIcon,
+  TableRows as TableRowsIcon
 } from '@mui/icons-material';
 
 export default function OktaGroups(props) {
@@ -29,7 +38,14 @@ export default function OktaGroups(props) {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [copiedText, setCopiedText] = useState('');
   const [expandAll, setExpandAll] = useState(false);
-  
+  const [showCreateGroupDialog, setShowCreateGroupDialog] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupDescription, setNewGroupDescription] = useState('');
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
+  const [sortColumn, setSortColumn] = useState('name'); // Column to sort by
+  const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+
   // Toggle group expansion
   const toggleGroupExpand = (groupId, event) => {
     if (event) {
@@ -68,13 +84,105 @@ export default function OktaGroups(props) {
     if (event) {
       event.stopPropagation();
     }
-    
+
     navigator.clipboard.writeText(text)
       .then(() => {
         setCopiedText(text);
         setTimeout(() => setCopiedText(''), 2000);
       })
       .catch(err => console.error('Failed to copy: ', err));
+  };
+
+  // Handle column sorting
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Create group handlers
+  const handleShowCreateGroup = () => {
+    setShowCreateGroupDialog(true);
+  };
+
+  const handleCloseCreateGroup = () => {
+    setShowCreateGroupDialog(false);
+    setNewGroupName('');
+    setNewGroupDescription('');
+  };
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) {
+      alert('Please enter a group name.');
+      return;
+    }
+
+    if (!newGroupDescription.trim()) {
+      alert('Please enter a group description.');
+      return;
+    }
+
+    setCreatingGroup(true);
+
+    try {
+      // URL encode the name and description for path parameters
+      const encodedName = encodeURIComponent(newGroupName.trim());
+      const encodedDescription = encodeURIComponent(newGroupDescription.trim());
+
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/create_group/${encodedName}/${encodedDescription}`, {
+        method: 'POST',
+        headers: {
+          'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create group: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Create group API response:', result);
+
+      // Check if group already exists
+      if (result?.error && result.error.toLowerCase().includes('already exists')) {
+        alert(`Group "${newGroupName}" already exists. Please choose a different name.`);
+        return;
+      }
+
+      // Check if there's an error in the response
+      if (result?.error || result?.message?.includes('error') || result?.status === 'error') {
+        throw new Error(result.error || result.message || 'Create group operation failed');
+      }
+
+      // Check for success response formats
+      if (result === 'success' ||
+          result?.status === 'success' ||
+          result?.message === 'success' ||
+          result?.success === true ||
+          (typeof result === 'object' && result.id)) { // Check for group object with ID
+        alert(`Group "${newGroupName}" has been successfully created.`);
+        handleCloseCreateGroup();
+        // Refresh the page to show the new group
+        window.location.reload();
+      } else {
+        console.warn('Unexpected response format:', result);
+        throw new Error(`Unexpected response: ${JSON.stringify(result)}`);
+      }
+    } catch (error) {
+      console.error('Error creating group:', error);
+      if (error.message.includes('Failed to create group:')) {
+        alert(`Failed to create group "${newGroupName}". Server responded with error: ${error.message}`);
+      } else {
+        alert(`Failed to create group "${newGroupName}". Error: ${error.message}`);
+      }
+    } finally {
+      setCreatingGroup(false);
+    }
   };
   
   // Format date strings
@@ -93,31 +201,13 @@ export default function OktaGroups(props) {
     }
   };
 
-  // Fetch Okta groups data
-  const [oktaGroups] = useQueries({
-    queries: [
-      {
-        queryKey: ["oktagroups"],
-        queryFn: async () => {
-          try {
-            const res = await fetch('https://laxcoresrv.buck.local:8000/buckokta/category/att/comparison/match?_category=groups', {
-              headers: {
-                'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-              }
-            });
-            if (!res.ok) {
-              throw new Error(`HTTP error! Status: ${res.status}`);
-            }
-            return res.json();
-          } catch (error) {
-            console.error("Error fetching groups:", error);
-            throw error;
-          }
-        },
-        retry: 2,
-        retryDelay: 1000,
-      }
-    ]
+  // Fetch Okta groups data - try different endpoint approaches
+  const oktaGroups = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'groups', _att: 'type', _comparison: 'eq', _match: 'OKTA_GROUP' },
+    queryConfig: {
+      retry: 2,
+      retryDelay: 1000,
+    }
   });
 
   // Process group data with useMemo for better performance
@@ -143,11 +233,38 @@ export default function OktaGroups(props) {
       });
     }
 
-    // Sort groups alphabetically by name
+    // Sort groups based on current sort settings
     filtered.sort((a, b) => {
-      const nameA = a.profile?.name?.toLowerCase() || '';
-      const nameB = b.profile?.name?.toLowerCase() || '';
-      return nameA.localeCompare(nameB);
+      let aValue, bValue;
+
+      switch (sortColumn) {
+        case 'name':
+          aValue = a.profile?.name?.toLowerCase() || '';
+          bValue = b.profile?.name?.toLowerCase() || '';
+          break;
+        case 'description':
+          aValue = a.profile?.description?.toLowerCase() || '';
+          bValue = b.profile?.description?.toLowerCase() || '';
+          break;
+        case 'created':
+          aValue = a.created || '';
+          bValue = b.created || '';
+          break;
+        case 'lastUpdated':
+          aValue = a.lastUpdated || '';
+          bValue = b.lastUpdated || '';
+          break;
+        default:
+          aValue = a.profile?.name?.toLowerCase() || '';
+          bValue = b.profile?.name?.toLowerCase() || '';
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc'
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+      return 0;
     });
 
     // Categorize groups by prefix (get first word before space or dash)
@@ -170,11 +287,11 @@ export default function OktaGroups(props) {
       categories[category].push(group);
     });
 
-    return { 
+    return {
       filteredGroups: filtered,
       groupCategories: categories
     };
-  }, [oktaGroups.data, searchTerm]);
+  }, [oktaGroups.data, searchTerm, sortColumn, sortDirection]);
 
   // Extract unique categories and sort them
   const uniqueCategories = useMemo(() => {
@@ -260,15 +377,42 @@ export default function OktaGroups(props) {
                 {filteredGroups.length} Groups
               </Typography>
             </Typography>
-            
-            <Button 
-              variant="outlined" 
-              size="small"
-              onClick={toggleExpandAll}
-              startIcon={expandAll ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            >
-              {expandAll ? 'Collapse All' : 'Expand All'}
-            </Button>
+
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <ToggleButtonGroup
+                value={viewMode}
+                exclusive
+                onChange={(_, newView) => newView && setViewMode(newView)}
+                aria-label="view mode"
+                size="small"
+              >
+                <ToggleButton value="card" aria-label="card view">
+                  <ViewModuleIcon />
+                </ToggleButton>
+                <ToggleButton value="table" aria-label="table view">
+                  <TableRowsIcon />
+                </ToggleButton>
+              </ToggleButtonGroup>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleShowCreateGroup}
+                startIcon={<GroupAddIcon />}
+                size="small"
+              >
+                Create Group
+              </Button>
+              {viewMode === 'card' && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={toggleExpandAll}
+                  startIcon={expandAll ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                >
+                  {expandAll ? 'Collapse All' : 'Expand All'}
+                </Button>
+              )}
+            </Box>
           </Box>
           
           {/* Search and filter section */}
@@ -328,8 +472,8 @@ export default function OktaGroups(props) {
           {filteredGroups.length === 0 ? (
             <Paper sx={{ p: 4, textAlign: 'center' }}>
               <Typography variant="h6" color="text.secondary" gutterBottom>No groups match your search</Typography>
-              <Button 
-                variant="outlined" 
+              <Button
+                variant="outlined"
                 onClick={handleClearFilter}
                 startIcon={<ClearAllIcon />}
                 sx={{ mt: 2 }}
@@ -337,7 +481,7 @@ export default function OktaGroups(props) {
                 Clear Search
               </Button>
             </Paper>
-          ) : (
+          ) : viewMode === 'card' ? (
             <Grid container spacing={2}>
               {/* Render by categories if not searching */}
               {!searchTerm && uniqueCategories.map(category => (
@@ -390,8 +534,112 @@ export default function OktaGroups(props) {
                 </Grid>
               ))}
             </Grid>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortColumn === 'name'}
+                        direction={sortColumn === 'name' ? sortDirection : 'asc'}
+                        onClick={() => handleSort('name')}
+                      >
+                        Group Name
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortColumn === 'description'}
+                        direction={sortColumn === 'description' ? sortDirection : 'asc'}
+                        onClick={() => handleSort('description')}
+                      >
+                        Description
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortColumn === 'created'}
+                        direction={sortColumn === 'created' ? sortDirection : 'asc'}
+                        onClick={() => handleSort('created')}
+                      >
+                        Created
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>
+                      <TableSortLabel
+                        active={sortColumn === 'lastUpdated'}
+                        direction={sortColumn === 'lastUpdated' ? sortDirection : 'asc'}
+                        onClick={() => handleSort('lastUpdated')}
+                      >
+                        Last Updated
+                      </TableSortLabel>
+                    </TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredGroups.map((group) => (
+                    <TableRow key={group.id} hover>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Avatar sx={{ bgcolor: 'primary.light', width: 32, height: 32 }}>
+                            <GroupIcon fontSize="small" />
+                          </Avatar>
+                          <Typography variant="body2" fontWeight="medium">
+                            {group.profile?.name || 'Unnamed Group'}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" noWrap sx={{ maxWidth: 300 }}>
+                          {group.profile?.description || 'No description'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={formatDate(group.created)}
+                          icon={<CalendarIcon fontSize="small" />}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {formatDate(group.lastUpdated)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          <Tooltip title="View details">
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleGroupExpand(group.id, e);
+                              }}
+                            >
+                              <InfoIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Copy Group ID">
+                            <IconButton
+                              size="small"
+                              onClick={(e) => copyToClipboard(group.id, e)}
+                              color={copiedText === group.id ? "success" : "default"}
+                            >
+                              <ContentCopyIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
-          
+
           {/* Footer */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 3, mb: 1 }}>
             <Typography variant="caption" color="text.secondary">
@@ -399,6 +647,81 @@ export default function OktaGroups(props) {
               {searchTerm && ` • Search: "${searchTerm}"`}
             </Typography>
           </Box>
+
+          {/* Create Group Dialog */}
+          <Dialog
+            open={showCreateGroupDialog}
+            onClose={handleCloseCreateGroup}
+            maxWidth="sm"
+            fullWidth
+            sx={{
+              '& .MuiDialog-paper': {
+                bgcolor: 'background.paper',
+                backgroundImage: 'none'
+              }
+            }}
+          >
+            <DialogTitle sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              bgcolor: 'white'
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <GroupAddIcon color="primary" />
+                <Typography variant="h6">
+                  Create New Group
+                </Typography>
+              </Box>
+              <IconButton onClick={handleCloseCreateGroup} size="small">
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent dividers sx={{ bgcolor: 'white' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: 1 }}>
+                <TextField
+                  fullWidth
+                  label="Group Name"
+                  placeholder="Enter group name..."
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  variant="outlined"
+                  required
+                  helperText="Group name should be unique and descriptive"
+                />
+                <TextField
+                  fullWidth
+                  label="Group Description"
+                  placeholder="Enter group description..."
+                  value={newGroupDescription}
+                  onChange={(e) => setNewGroupDescription(e.target.value)}
+                  variant="outlined"
+                  multiline
+                  rows={3}
+                  required
+                  helperText="Provide a clear description of the group's purpose"
+                />
+              </Box>
+            </DialogContent>
+            <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', gap: 2, bgcolor: 'white' }}>
+              <Button
+                variant="outlined"
+                onClick={handleCloseCreateGroup}
+                disabled={creatingGroup}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleCreateGroup}
+                disabled={creatingGroup || !newGroupName.trim() || !newGroupDescription.trim()}
+                startIcon={creatingGroup ? <CircularProgress size={20} /> : <GroupAddIcon />}
+              >
+                {creatingGroup ? 'Creating...' : 'Create Group'}
+              </Button>
+            </Box>
+          </Dialog>
         </Container>
       );
     } catch (error) {
@@ -425,6 +748,10 @@ export default function OktaGroups(props) {
 function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copiedText, formatDate }) {
   const [showUsersDialog, setShowUsersDialog] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [removingUsers, setRemovingUsers] = useState(new Set());
+  const [showAddUsersDialog, setShowAddUsersDialog] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [addingUsers, setAddingUsers] = useState(new Set());
 
   // Fetch member count for this group only when expanded
   const { data: memberCount } = useQuery({
@@ -458,22 +785,44 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
     queryKey: ['groupMembers', selectedGroupId],
     queryFn: async () => {
       if (!selectedGroupId) return [];
-      
+
       const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/get_group_members?groupid=${selectedGroupId}`, {
         headers: {
           'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch group members: ${response.status}`);
       }
-      
+
       return response.json();
     },
     enabled: !!selectedGroupId && showUsersDialog,
     retry: 2,
     retryDelay: 1000
+  });
+
+  // Fetch all Okta users for adding to group
+  const { data: allUsers, isLoading: usersLoading, error: usersError } = useQuery({
+    queryKey: ['allOktaUsers'],
+    queryFn: async () => {
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/category/att/comparison/match?_category=users`, {
+        headers: {
+          'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.status}`);
+      }
+
+      return response.json();
+    },
+    enabled: showAddUsersDialog,
+    retry: 2,
+    retryDelay: 1000,
+    staleTime: 5 * 60 * 1000 // Cache for 5 minutes
   });
 
   const handleShowUsers = (groupId, event) => {
@@ -487,6 +836,161 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
   const handleCloseUsersDialog = () => {
     setShowUsersDialog(false);
     setSelectedGroupId(null);
+  };
+
+  const handleShowAddUsers = (groupId, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    setSelectedGroupId(groupId);
+    setShowAddUsersDialog(true);
+  };
+
+  const handleCloseAddUsersDialog = () => {
+    setShowAddUsersDialog(false);
+    setSelectedGroupId(null);
+    setUserSearchTerm('');
+  };
+
+  const handleExportCSV = async (groupId, groupName, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+
+    try {
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/get_group_members?groupid=${groupId}`, {
+        headers: {
+          'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch group members: ${response.status}`);
+      }
+
+      const members = await response.json();
+
+      if (!Array.isArray(members) || members.length === 0) {
+        alert('No members found in this group to export.');
+        return;
+      }
+
+      // Create CSV content
+      const headers = ['Display Name', 'Email', 'Login', 'Status', 'First Name', 'Last Name', 'User ID'];
+      const csvContent = [
+        headers.join(','),
+        ...members.map(member => [
+          `"${member.profile?.displayName || ''}"`,
+          `"${member.profile?.email || ''}"`,
+          `"${member.profile?.login || ''}"`,
+          `"${member.status || ''}"`,
+          `"${member.profile?.firstName || ''}"`,
+          `"${member.profile?.lastName || ''}"`,
+          `"${member.id || ''}"`
+        ].join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${groupName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_members.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert('Failed to export CSV. Please try again.');
+    }
+  };
+
+  const handleRemoveUser = async (userId, userName, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+
+    const confirmed = window.confirm(`Are you sure you want to remove ${userName} from this group?`);
+    if (!confirmed) return;
+
+    setRemovingUsers(prev => new Set([...prev, userId]));
+
+    try {
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/remove_user_from_group?userid=${userId}&groupid=${selectedGroupId}`, {
+        method: 'POST',
+        headers: {
+          'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to remove user: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result === 'success' || result?.status === 'success') {
+        alert(`${userName} has been successfully removed from the group.`);
+        // Refetch group members to update the list
+        window.location.reload(); // Simple approach - could be optimized with query invalidation
+      } else {
+        throw new Error('Remove operation failed');
+      }
+    } catch (error) {
+      console.error('Error removing user:', error);
+      alert(`Failed to remove ${userName} from the group. Please try again.`);
+    } finally {
+      setRemovingUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleAddUser = async (userId, userName, event) => {
+    if (event) {
+      event.stopPropagation();
+    }
+
+    const confirmed = window.confirm(`Are you sure you want to add ${userName} to this group?`);
+    if (!confirmed) return;
+
+    setAddingUsers(prev => new Set([...prev, userId]));
+
+    try {
+      const response = await fetch(`https://laxcoresrv.buck.local:8000/buckokta/add_user_to_group?userid=${userId}&groupid=${selectedGroupId}`, {
+        method: 'POST',
+        headers: {
+          'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to add user: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result === 'success' || result?.status === 'success') {
+        alert(`${userName} has been successfully added to the group.`);
+        // Refetch group members to update the list
+        window.location.reload(); // Simple approach - could be optimized with query invalidation
+      } else {
+        throw new Error('Add operation failed');
+      }
+    } catch (error) {
+      console.error('Error adding user:', error);
+      alert(`Failed to add ${userName} to the group. Please try again.`);
+    } finally {
+      setAddingUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
   };
 
   return (
@@ -652,8 +1156,8 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
             </Grid>
           </Grid>
           
-          {/* Show Users Button */}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+          {/* Action Buttons */}
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mt: 2, flexWrap: 'wrap' }}>
             <Button
               variant="contained"
               startIcon={<PeopleIcon />}
@@ -661,19 +1165,34 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
             >
               Show Users {memberCount !== undefined ? `(${memberCount})` : ''}
             </Button>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<PersonAddIcon />}
+              onClick={(e) => handleShowAddUsers(group.id, e)}
+            >
+              Add Users
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={(e) => handleExportCSV(group.id, group.profile?.name || 'group', e)}
+            >
+              Export CSV
+            </Button>
           </Box>
         </Collapse>
       </CardContent>
     </Card>
 
     {/* Users Dialog */}
-    <Dialog 
-      open={showUsersDialog} 
+    <Dialog
+      open={showUsersDialog}
       onClose={handleCloseUsersDialog}
       maxWidth="md"
       fullWidth
-      PaperProps={{
-        sx: {
+      sx={{
+        '& .MuiDialog-paper': {
           bgcolor: 'background.paper',
           backgroundImage: 'none'
         }
@@ -708,7 +1227,30 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
         ) : groupMembers && groupMembers.length > 0 ? (
           <List>
             {groupMembers.map((member) => (
-              <ListItem key={member.id || member.login}>
+              <ListItem
+                key={member.id || member.login}
+                secondaryAction={
+                  <Tooltip title={`Remove ${member.profile?.displayName || 'user'} from group`}>
+                    <IconButton
+                      edge="end"
+                      onClick={(e) => handleRemoveUser(
+                        member.id,
+                        member.profile?.displayName || member.profile?.firstName + ' ' + member.profile?.lastName || 'Unknown User',
+                        e
+                      )}
+                      disabled={removingUsers.has(member.id)}
+                      color="error"
+                      size="small"
+                    >
+                      {removingUsers.has(member.id) ? (
+                        <CircularProgress size={20} />
+                      ) : (
+                        <PersonRemoveIcon />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                }
+              >
                 <ListItemAvatar>
                   <Avatar sx={{ bgcolor: 'primary.light' }}>
                     <PersonIcon />
@@ -719,9 +1261,9 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {member.profile?.displayName || member.profile?.firstName + ' ' + member.profile?.lastName || 'Unknown User'}
                       {member.status && (
-                        <Chip 
-                          size="small" 
-                          label={member.status} 
+                        <Chip
+                          size="small"
+                          label={member.status}
                           color={member.status === 'ACTIVE' ? 'success' : 'default'}
                           variant="outlined"
                         />
@@ -747,6 +1289,157 @@ function GroupCard({ group, isExpanded, toggleGroupExpand, copyToClipboard, copi
         ) : (
           <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
             No members found in this group
+          </Typography>
+        )}
+      </DialogContent>
+    </Dialog>
+
+    {/* Add Users Dialog */}
+    <Dialog
+      open={showAddUsersDialog}
+      onClose={handleCloseAddUsersDialog}
+      maxWidth="md"
+      fullWidth
+      sx={{
+        '& .MuiDialog-paper': {
+          bgcolor: 'background.paper',
+          backgroundImage: 'none'
+        }
+      }}
+    >
+      <DialogTitle sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        bgcolor: 'white'
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PersonAddIcon color="success" />
+          <Typography variant="h6">
+            Add Users to {group.profile?.name}
+          </Typography>
+        </Box>
+        <IconButton onClick={handleCloseAddUsersDialog} size="small">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent dividers sx={{ bgcolor: 'white' }}>
+        {/* Search box */}
+        <Box sx={{ mb: 2 }}>
+          <TextField
+            fullWidth
+            placeholder="Search users by name or email..."
+            value={userSearchTerm}
+            onChange={(e) => setUserSearchTerm(e.target.value)}
+            size="small"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: userSearchTerm && (
+                <InputAdornment position="end">
+                  <Tooltip title="Clear search">
+                    <IconButton size="small" onClick={() => setUserSearchTerm('')}>
+                      <ClearAllIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </InputAdornment>
+              )
+            }}
+          />
+        </Box>
+
+        {usersLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : usersError ? (
+          <Alert severity="error">
+            <AlertTitle>Error Loading Users</AlertTitle>
+            {usersError.message}
+          </Alert>
+        ) : allUsers && allUsers.length > 0 ? (
+          <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+            {allUsers
+              .filter(user => {
+                if (!userSearchTerm) return true;
+                const searchLower = userSearchTerm.toLowerCase();
+                const fullName = `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim();
+                return (
+                  fullName.toLowerCase().includes(searchLower) ||
+                  user.profile?.email?.toLowerCase().includes(searchLower) ||
+                  user.profile?.login?.toLowerCase().includes(searchLower)
+                );
+              })
+              .filter(user => {
+                // Filter out users already in the group
+                return !groupMembers?.some(member => member.id === user.id);
+              })
+              .map((user) => (
+                <ListItem
+                  key={user.id}
+                  secondaryAction={
+                    <Tooltip title={`Add ${user.profile?.firstName || 'user'} to group`}>
+                      <IconButton
+                        edge="end"
+                        onClick={(e) => handleAddUser(
+                          user.id,
+                          `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim() || user.profile?.email || 'Unknown User',
+                          e
+                        )}
+                        disabled={addingUsers.has(user.id)}
+                        color="success"
+                        size="small"
+                      >
+                        {addingUsers.has(user.id) ? (
+                          <CircularProgress size={20} />
+                        ) : (
+                          <PersonAddIcon />
+                        )}
+                      </IconButton>
+                    </Tooltip>
+                  }
+                >
+                  <ListItemAvatar>
+                    <Avatar sx={{ bgcolor: 'success.light' }}>
+                      <PersonIcon />
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {`${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim() || 'Unknown User'}
+                        {user.status && (
+                          <Chip
+                            size="small"
+                            label={user.status}
+                            color={user.status === 'ACTIVE' ? 'success' : 'default'}
+                            variant="outlined"
+                          />
+                        )}
+                      </Box>
+                    }
+                    secondary={
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">
+                          {user.profile?.email || 'No email'}
+                        </Typography>
+                        {user.profile?.login && user.profile?.login !== user.profile?.email && (
+                          <Typography variant="caption" color="text.secondary">
+                            Login: {user.profile?.login}
+                          </Typography>
+                        )}
+                      </Box>
+                    }
+                  />
+                </ListItem>
+              ))}
+          </List>
+        ) : (
+          <Typography color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
+            No users available to add
           </Typography>
         )}
       </DialogContent>

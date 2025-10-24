@@ -1,17 +1,15 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { 
-  Typography, Container, Paper, Box, CircularProgress, Alert, TextField, 
+import {
+  Typography, Container, Paper, Box, CircularProgress, Alert, TextField,
   InputAdornment, FormControlLabel, Switch, Chip, Select, MenuItem, FormControl, InputLabel,
   Button
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { useOktaAuth } from '@okta/okta-react';
+import { useProtectedApiGet } from '../hooks/useApi';
 
 export default function OktaLocations(props) {
   const { authState } = useOktaAuth();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [oktaUsers, setOktaUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [locationFilter, setLocationFilter] = useState('');
@@ -19,110 +17,93 @@ export default function OktaLocations(props) {
   const mapRef = useRef(null);
   const markersRef = useRef([]);
   const [isMapZoomed, setIsMapZoomed] = useState(false);
-  
+
   console.log("OktaLocations render - Auth state:", authState?.isAuthenticated);
 
-  useEffect(() => {
-    console.log("OktaLocations component mounted");
-    // Simple timeout to check if component is rendering at all
-    const timer = setTimeout(() => {
-      setLoading(false);
-      console.log("Loading state turned off");
-    }, 2000);
+  // Fetch Okta users using the proper API hook - use proven working pattern
+  const oktaUsersQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
+    queryParams: { _category: 'users', _att: 'status', _comparison: 'eq', _match: 'ACTIVE' },
+    queryConfig: {
+      retry: 2,
+      retryDelay: 1000,
+    }
+  });
 
-    return () => clearTimeout(timer);
-  }, []);
+  // Process users data with location enrichment
+  const oktaUsers = useMemo(() => {
+    if (!oktaUsersQuery.data || !Array.isArray(oktaUsersQuery.data)) {
+      return [];
+    }
 
-  // Fetch Okta users
-  useEffect(() => {
-    const fetchOktaUsers = async () => {
-      try {
-        console.log("Fetching Okta users...");
-        const res = await fetch('https://laxcoresrv.buck.local:8000/buckokta/category/att/comparison/match?_category=users', {
-          headers: {
-            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
-          }
-        });
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
+    console.log("Processing Okta users for locations:", oktaUsersQuery.data.length);
+
+    // Define major office locations to assign randomly
+    const officeLocations = [
+      { city: "Los Angeles", country: "United States", lat: 34.05, lng: -118.24 },
+      { city: "New York", country: "United States", lat: 40.71, lng: -74.01 },
+      { city: "San Francisco", country: "United States", lat: 37.77, lng: -122.42 },
+      { city: "London", country: "United Kingdom", lat: 51.51, lng: -0.13 },
+      { city: "Sydney", country: "Australia", lat: -33.87, lng: 151.21 },
+      { city: "Tokyo", country: "Japan", lat: 35.68, lng: 139.77 },
+      { city: "Toronto", country: "Canada", lat: 43.65, lng: -79.38 },
+      { city: "Berlin", country: "Germany", lat: 52.52, lng: 13.40 },
+      { city: "Paris", country: "France", lat: 48.86, lng: 2.35 },
+      { city: "Singapore", country: "Singapore", lat: 1.35, lng: 103.82 }
+    ];
+
+    // Enrich with location data
+    const usersWithLocations = oktaUsersQuery.data.map(user => {
+      // Try to extract location from user profile if possible
+      let locationName = 'Unknown';
+      let userLocation = null;
+
+      if (user.profile?.city && user.profile?.countryCode) {
+        locationName = `${user.profile.city}, ${user.profile.countryCode}`;
+
+        // Try to find a matching office location
+        const matchingOffice = officeLocations.find(loc =>
+          loc.city.toLowerCase() === user.profile.city.toLowerCase()
+        );
+
+        if (matchingOffice) {
+          userLocation = {
+            lat: matchingOffice.lat + (Math.random() - 0.5) * 0.2, // Add slight randomness
+            lng: matchingOffice.lng + (Math.random() - 0.5) * 0.2,
+            name: locationName
+          };
         }
-        const data = await res.json();
-        console.log("Okta users fetched successfully:", data.length);
-        
-        // Define major office locations to assign randomly
-        const officeLocations = [
-          { city: "Los Angeles", country: "United States", lat: 34.05, lng: -118.24 },
-          { city: "New York", country: "United States", lat: 40.71, lng: -74.01 },
-          { city: "San Francisco", country: "United States", lat: 37.77, lng: -122.42 },
-          { city: "London", country: "United Kingdom", lat: 51.51, lng: -0.13 },
-          { city: "Sydney", country: "Australia", lat: -33.87, lng: 151.21 },
-          { city: "Tokyo", country: "Japan", lat: 35.68, lng: 139.77 },
-          { city: "Toronto", country: "Canada", lat: 43.65, lng: -79.38 },
-          { city: "Berlin", country: "Germany", lat: 52.52, lng: 13.40 },
-          { city: "Paris", country: "France", lat: 48.86, lng: 2.35 },
-          { city: "Singapore", country: "Singapore", lat: 1.35, lng: 103.82 }
-        ];
-        
-        // Enrich with location data
-        const usersWithLocations = data.map(user => {
-          // Try to extract location from user profile if possible
-          let locationName = 'Unknown';
-          let userLocation = null;
-          
-          if (user.profile?.city && user.profile?.countryCode) {
-            locationName = `${user.profile.city}, ${user.profile.countryCode}`;
-            
-            // Try to find a matching office location
-            const matchingOffice = officeLocations.find(loc => 
-              loc.city.toLowerCase() === user.profile.city.toLowerCase()
-            );
-            
-            if (matchingOffice) {
-              userLocation = {
-                lat: matchingOffice.lat + (Math.random() - 0.5) * 0.2, // Add slight randomness
-                lng: matchingOffice.lng + (Math.random() - 0.5) * 0.2,
-                name: locationName
-              };
-            }
-          }
-          
-          // If we couldn't extract location from profile, assign a random office
-          if (!userLocation) {
-            const randomOffice = officeLocations[Math.floor(Math.random() * officeLocations.length)];
-            userLocation = {
-              lat: randomOffice.lat + (Math.random() - 0.5) * 0.2, // Add slight randomness
-              lng: randomOffice.lng + (Math.random() - 0.5) * 0.2,
-              name: `${randomOffice.city}, ${randomOffice.country}`
-            };
-          }
-          
-          // Randomly mark some users as freelancers (5% chance)
-          const isFreelancer = Math.random() < 0.05;
-          const updatedProfile = {
-            ...user.profile,
-            userType: isFreelancer ? 'Freelancer' : 'Employee'
-          };
-          
-          return {
-            ...user,
-            profile: updatedProfile,
-            location: userLocation
-          };
-        });
-        
-        setOktaUsers(usersWithLocations);
-      } catch (error) {
-        console.error("Error fetching Okta users:", error);
-        setError("Failed to fetch Okta users");
       }
-    };
 
-    fetchOktaUsers();
-  }, []);
+      // If we couldn't extract location from profile, assign a random office
+      if (!userLocation) {
+        const randomOffice = officeLocations[Math.floor(Math.random() * officeLocations.length)];
+        userLocation = {
+          lat: randomOffice.lat + (Math.random() - 0.5) * 0.2, // Add slight randomness
+          lng: randomOffice.lng + (Math.random() - 0.5) * 0.2,
+          name: `${randomOffice.city}, ${randomOffice.country}`
+        };
+      }
+
+      // Randomly mark some users as freelancers (5% chance)
+      const isFreelancer = Math.random() < 0.05;
+      const updatedProfile = {
+        ...user.profile,
+        userType: isFreelancer ? 'Freelancer' : 'Employee'
+      };
+
+      return {
+        ...user,
+        profile: updatedProfile,
+        location: userLocation
+      };
+    });
+
+    return usersWithLocations;
+  }, [oktaUsersQuery.data]);
 
   // Initialize map when the component mounts and data is loaded
   useEffect(() => {
-    if (!loading && oktaUsers.length > 0 && mapContainerRef.current) {
+    if (!oktaUsersQuery.isLoading && oktaUsers.length > 0 && mapContainerRef.current) {
       // We're using a dynamic import to avoid issues with SSR
       import('leaflet').then(L => {
         // Make sure we only initialize the map once
@@ -421,10 +402,9 @@ export default function OktaLocations(props) {
         }
       }).catch(error => {
         console.error("Error loading Leaflet:", error);
-        setError("Failed to load mapping library. Please check your internet connection and try again.");
       });
     }
-  }, [loading, oktaUsers, showOnlyActive, searchTerm, locationFilter]);
+  }, [oktaUsersQuery.isLoading, oktaUsers, showOnlyActive, searchTerm, locationFilter]);
 
   // Extract unique locations and their coordinates for filtering and zooming
   const locationData = useMemo(() => {
@@ -466,7 +446,7 @@ export default function OktaLocations(props) {
   
   // Zoom to selected location with improved transition
   useEffect(() => {
-    if (!loading && mapRef.current) {
+    if (!oktaUsersQuery.isLoading && mapRef.current) {
       // Check if the location filter has changed
       const locationChanged = prevLocationFilterRef.current !== locationFilter;
       prevLocationFilterRef.current = locationFilter;
@@ -496,7 +476,7 @@ export default function OktaLocations(props) {
         setIsMapZoomed(false);
       }
     }
-  }, [loading, locationFilter, locationData, isMapZoomed]);
+  }, [oktaUsersQuery.isLoading, locationFilter, locationData, isMapZoomed]);
   
   // Function to reset map view
   const resetMapView = () => {
@@ -505,12 +485,12 @@ export default function OktaLocations(props) {
 
   // Trigger map update when filters change
   useEffect(() => {
-    if (!loading && mapRef.current) {
+    if (!oktaUsersQuery.isLoading && mapRef.current) {
       window.dispatchEvent(new Event('updateOktaMap'));
     }
-  }, [loading, showOnlyActive, searchTerm, locationFilter]);
+  }, [oktaUsersQuery.isLoading, showOnlyActive, searchTerm, locationFilter]);
 
-  if (loading) {
+  if (oktaUsersQuery.isLoading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Typography variant='h4' color="primary" fontWeight="medium" gutterBottom>
@@ -523,7 +503,7 @@ export default function OktaLocations(props) {
     );
   }
 
-  if (error) {
+  if (oktaUsersQuery.error) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Typography variant='h4' color="primary" fontWeight="medium" gutterBottom>
@@ -532,7 +512,7 @@ export default function OktaLocations(props) {
         <Paper sx={{ p: 3, bgcolor: '#fff5f5' }}>
           <Typography color="error" variant="h6" gutterBottom>An error occurred</Typography>
           <Typography color="text.secondary">
-            {error}
+            {oktaUsersQuery.error.message || 'Failed to fetch Okta users'}
           </Typography>
         </Paper>
       </Container>
