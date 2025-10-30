@@ -181,7 +181,7 @@ export default function HammerSpaceProjects(props) {
                         >
                             Use this link to see job status
                         </Link>
-                        . Celery worker runs on amscoresrv (screen -ls, screen -r celery), uses redis running on amscoresrv. (systemctl status redis).
+                        . Celery worker and flower server run on amscoresrv (systemctl status rzcelery, systemctl status rzflower), uses redis running on amscoresrv. (systemctl status redis).
                     </Typography>
                 </Alert>
 

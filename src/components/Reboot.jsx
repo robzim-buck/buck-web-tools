@@ -1,9 +1,10 @@
-import { 
+import {
   Chip, Typography, Box, Container, Grid, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, IconButton, Collapse, Tooltip, Button,
   Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
-  Snackbar, Switch, FormControlLabel
+  Snackbar, Switch, FormControlLabel, TextField, InputAdornment,
+  ToggleButton, ToggleButtonGroup, MenuItem, Select, FormControl, InputLabel
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -11,7 +12,12 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ComputerIcon from '@mui/icons-material/Computer';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import React, { useState } from 'react';
+import SearchIcon from '@mui/icons-material/Search';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import React, { useState, useMemo } from 'react';
 import { useQueries } from "@tanstack/react-query";
 import CircularProgress from '@mui/material/CircularProgress';
 
@@ -25,7 +31,12 @@ export default function Reboot(props) {
         mac: false,
         linux: false
     });
-    const [showActiveOnly, setShowActiveOnly] = useState(true);
+    const [showActiveOnly, setShowActiveOnly] = useState(false);
+    const [viewMode, setViewMode] = useState('grouped');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [osFilter, setOsFilter] = useState('all');
+    const [sortColumn, setSortColumn] = useState('name');
+    const [sortDirection, setSortDirection] = useState('asc');
     
     const handleToggle = (machineId) => {
         setExpanded(prev => ({
@@ -94,7 +105,21 @@ export default function Reboot(props) {
     const handleSnackbarClose = () => {
         setSnackbar({ ...snackbar, open: false });
     };
-    
+
+    const handleSort = (column) => {
+        if (sortColumn === column) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortColumn(column);
+            setSortDirection('asc');
+        }
+    };
+
+    const getSortIcon = (column) => {
+        if (sortColumn !== column) return null;
+        return sortDirection === 'asc' ? <ArrowUpwardIcon fontSize="small" /> : <ArrowDownwardIcon fontSize="small" />;
+    };
+
     const [ldapMachineInfo] = useQueries({
         queries: [
           {
@@ -120,6 +145,158 @@ export default function Reboot(props) {
         ]
     });
 
+    // Helper function to get the best available last logon date
+    const getLastLogonDate = (machine) => {
+        if (machine.lastLogon && machine.lastLogon !== "N/A") {
+            return machine.lastLogon;
+        } else if (machine.lastLogonTimestamp && machine.lastLogonTimestamp !== "N/A") {
+            return machine.lastLogonTimestamp;
+        } else if (machine.whenChanged) {
+            return machine.whenChanged;
+        }
+        return null;
+    };
+
+    // Helper function to check if machine is active (last logon within 7 days)
+    const isActiveSystem = (machine) => {
+        const dateToCheck = getLastLogonDate(machine);
+        if (!dateToCheck) return false;
+
+        const lastLogonDate = new Date(dateToCheck);
+        const daysSinceLogon = Math.floor((Date.now() - lastLogonDate) / (1000 * 60 * 60 * 24));
+        return daysSinceLogon <= 7;
+    };
+
+    // Process data with useMemo at the top level
+    const sortedData = useMemo(() => {
+        if (!ldapMachineInfo.data) return [];
+        return Array.isArray(ldapMachineInfo.data)
+            ? [...ldapMachineInfo.data].sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+            : [];
+    }, [ldapMachineInfo.data]);
+
+    // Filtered and sorted list for table view
+    const filteredAndSortedMachines = useMemo(() => {
+        let filtered = [...sortedData];
+
+        // Apply search filter
+        if (searchTerm) {
+            const search = searchTerm.toLowerCase();
+            filtered = filtered.filter(machine =>
+                (machine.name || '').toLowerCase().includes(search) ||
+                (machine.operatingSystem || '').toLowerCase().includes(search)
+            );
+        }
+
+        // Apply OS filter
+        if (osFilter !== 'all') {
+            if (osFilter === 'windows') {
+                filtered = filtered.filter(machine =>
+                    machine.operatingSystem && machine.operatingSystem.toLowerCase().includes('windows')
+                );
+            } else if (osFilter === 'mac') {
+                filtered = filtered.filter(machine =>
+                    machine.operatingSystem && (
+                        machine.operatingSystem.toLowerCase().includes('mac') ||
+                        machine.operatingSystem.toLowerCase().includes('darwin') ||
+                        machine.operatingSystem.toLowerCase().includes('osx') ||
+                        machine.operatingSystem.toLowerCase().includes('os x')
+                    )
+                );
+            } else if (osFilter === 'linux') {
+                filtered = filtered.filter(machine =>
+                    machine.operatingSystem && (
+                        machine.operatingSystem.toLowerCase().includes('linux') ||
+                        machine.operatingSystem.toLowerCase().includes('ubuntu') ||
+                        machine.operatingSystem.toLowerCase().includes('centos') ||
+                        machine.operatingSystem.toLowerCase().includes('redhat') ||
+                        machine.operatingSystem.toLowerCase().includes('debian')
+                    )
+                );
+            }
+        }
+
+        // Apply active filter
+        if (showActiveOnly) {
+            filtered = filtered.filter(isActiveSystem);
+        }
+
+        // Apply sorting
+        filtered.sort((a, b) => {
+            let aValue, bValue;
+
+            switch (sortColumn) {
+                case 'name':
+                    aValue = (a.name || '').toLowerCase();
+                    bValue = (b.name || '').toLowerCase();
+                    break;
+                case 'os':
+                    aValue = (a.operatingSystem || '').toLowerCase();
+                    bValue = (b.operatingSystem || '').toLowerCase();
+                    break;
+                case 'status':
+                    const aActive = isActiveSystem(a);
+                    const bActive = isActiveSystem(b);
+                    aValue = aActive ? 'active' : 'inactive';
+                    bValue = bActive ? 'active' : 'inactive';
+                    break;
+                case 'lastLogon':
+                    aValue = a.lastLogon ? new Date(a.lastLogon).getTime() : 0;
+                    bValue = b.lastLogon ? new Date(b.lastLogon).getTime() : 0;
+                    break;
+                case 'critical':
+                    aValue = a.isCriticalSystemObject === "No" ? 0 : 1;
+                    bValue = b.isCriticalSystemObject === "No" ? 0 : 1;
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        return filtered;
+    }, [sortedData, searchTerm, osFilter, showActiveOnly, sortColumn, sortDirection]);
+
+    // Separate machines by operating system
+    const windowsMachines = useMemo(() => {
+        const allWindows = sortedData.filter(machine =>
+            machine.operatingSystem && machine.operatingSystem.toLowerCase().includes('windows')
+        );
+        return showActiveOnly ? allWindows.filter(isActiveSystem) : allWindows;
+    }, [sortedData, showActiveOnly]);
+
+    const macMachines = useMemo(() => {
+        const allMac = sortedData.filter(machine =>
+            machine.operatingSystem && (
+                machine.operatingSystem.toLowerCase().includes('mac') ||
+                machine.operatingSystem.toLowerCase().includes('darwin') ||
+                machine.operatingSystem.toLowerCase().includes('osx') ||
+                machine.operatingSystem.toLowerCase().includes('os x')
+            )
+        );
+        return showActiveOnly ? allMac.filter(isActiveSystem) : allMac;
+    }, [sortedData, showActiveOnly]);
+
+    const linuxMachines = useMemo(() => {
+        const allLinux = sortedData.filter(machine =>
+            machine.operatingSystem && (
+                machine.operatingSystem.toLowerCase().includes('linux') ||
+                machine.operatingSystem.toLowerCase().includes('ubuntu') ||
+                machine.operatingSystem.toLowerCase().includes('centos') ||
+                machine.operatingSystem.toLowerCase().includes('redhat') ||
+                machine.operatingSystem.toLowerCase().includes('debian')
+            )
+        );
+        return showActiveOnly ? allLinux.filter(isActiveSystem) : allLinux;
+    }, [sortedData, showActiveOnly]);
+
+    const criticalSystems = useMemo(() => {
+        return sortedData.filter(machine => machine.isCriticalSystemObject !== "No").length;
+    }, [sortedData]);
+
     if (ldapMachineInfo.isLoading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', py: 8 }}>
@@ -127,7 +304,7 @@ export default function Reboot(props) {
             </Box>
         );
     }
-    
+
     if (ldapMachineInfo.error) {
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -138,71 +315,76 @@ export default function Reboot(props) {
             </Container>
         );
     }
-    
-    if (ldapMachineInfo.data) {
-        const sortedData = Array.isArray(ldapMachineInfo.data) 
-            ? ldapMachineInfo.data.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-            : [];
-        
-        if (!sortedData || sortedData.length === 0) {
-            return (
-                <Box sx={{ p: 3, textAlign: 'center' }}>
-                    <Typography variant="h5" color="text.secondary">No machines found</Typography>
-                </Box>
-            );
-        }
 
-        // Helper function to check if machine is active (last logon within 7 days)
-        const isActiveSystem = (machine) => {
-            if (!machine.lastLogon) return false;
-            const lastLogonDate = new Date(machine.lastLogon);
-            const daysSinceLogon = Math.floor((Date.now() - lastLogonDate) / (1000 * 60 * 60 * 24));
-            return daysSinceLogon <= 7;
-        };
-
-        // Filter function based on active switch
-        const filterMachines = (machines) => {
-            return showActiveOnly ? machines.filter(isActiveSystem) : machines;
-        };
-
-        // Separate machines by operating system
-        const allWindowsMachines = sortedData.filter(machine => 
-            machine.operatingSystem && machine.operatingSystem.toLowerCase().includes('windows')
+    if (!sortedData || sortedData.length === 0) {
+        return (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="h5" color="text.secondary">No machines found</Typography>
+            </Box>
         );
-        const windowsMachines = filterMachines(allWindowsMachines);
-        
-        const allMacMachines = sortedData.filter(machine => 
-            machine.operatingSystem && (
-                machine.operatingSystem.toLowerCase().includes('mac') ||
-                machine.operatingSystem.toLowerCase().includes('darwin') ||
-                machine.operatingSystem.toLowerCase().includes('osx') ||
-                machine.operatingSystem.toLowerCase().includes('os x')
-            )
-        );
-        const macMachines = filterMachines(allMacMachines);
-        
-        const allLinuxMachines = sortedData.filter(machine => 
-            machine.operatingSystem && (
-                machine.operatingSystem.toLowerCase().includes('linux') ||
-                machine.operatingSystem.toLowerCase().includes('ubuntu') ||
-                machine.operatingSystem.toLowerCase().includes('centos') ||
-                machine.operatingSystem.toLowerCase().includes('redhat') ||
-                machine.operatingSystem.toLowerCase().includes('debian')
-            )
-        );
-        const linuxMachines = filterMachines(allLinuxMachines);
-
-        const criticalSystems = sortedData.filter(machine => 
-            machine.isCriticalSystemObject !== "No"
-        ).length;
+    }
 
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                    <Typography variant='h5' color="primary" fontWeight="medium">
-                        {props.name || 'Machine Reboot Control'}
+                <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                        <Typography variant='h5' color="primary" fontWeight="medium">
+                            {props.name || 'Machine Reboot Control'}
+                        </Typography>
+                        <ToggleButtonGroup
+                            value={viewMode}
+                            exclusive
+                            onChange={(_, newMode) => newMode && setViewMode(newMode)}
+                            size="small"
+                        >
+                            <ToggleButton value="grouped">
+                                <ViewModuleIcon sx={{ mr: 1 }} fontSize="small" />
+                                Grouped
+                            </ToggleButton>
+                            <ToggleButton value="table">
+                                <ViewListIcon sx={{ mr: 1 }} fontSize="small" />
+                                Table
+                            </ToggleButton>
+                        </ToggleButtonGroup>
+                    </Box>
+
+                    <Typography variant='body2' color="text.secondary" sx={{ mb: 2 }}>
+                        Note: only Windows Machines are Rebootable at this time
                     </Typography>
-                    <Typography variant='h6'>Note: only Windows Machines are Rebootable at this time</Typography>
+
+                    {viewMode === 'table' && (
+                        <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                            <TextField
+                                size="small"
+                                placeholder="Search machines..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                slotProps={{
+                                    input: {
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchIcon fontSize="small" />
+                                            </InputAdornment>
+                                        )
+                                    }
+                                }}
+                                sx={{ minWidth: 250 }}
+                            />
+                            <FormControl size="small" sx={{ minWidth: 120 }}>
+                                <InputLabel>OS Type</InputLabel>
+                                <Select
+                                    value={osFilter}
+                                    onChange={(e) => setOsFilter(e.target.value)}
+                                    label="OS Type"
+                                >
+                                    <MenuItem value="all">All OS</MenuItem>
+                                    <MenuItem value="windows">Windows</MenuItem>
+                                    <MenuItem value="mac">Mac</MenuItem>
+                                    <MenuItem value="linux">Linux</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Box>
+                    )}
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -212,7 +394,7 @@ export default function Reboot(props) {
                             <Chip label={`🐧 ${linuxMachines.length}`} color="warning" variant="outlined" />
                             <Chip label={`⚠️ ${criticalSystems} Critical`} color="error" variant="outlined" />
                         </Box>
-                        
+
                         <FormControlLabel
                             control={
                                 <Switch
@@ -228,8 +410,207 @@ export default function Reboot(props) {
                     </Box>
                 </Box>
 
+                {/* Table View - All Machines */}
+                {viewMode === 'table' && (
+                    <Box sx={{ mb: 4 }}>
+                        <TableContainer component={Paper} sx={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                            <Table sx={{ minWidth: 650 }} size="small">
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: 'primary.main' }}>
+                                        <TableCell
+                                            sx={{
+                                                color: 'primary.contrastText',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                userSelect: 'none',
+                                                '&:hover': { bgcolor: 'primary.dark' }
+                                            }}
+                                            onClick={() => handleSort('name')}
+                                        >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <ComputerIcon fontSize="small" />
+                                                Machine Name
+                                                {getSortIcon('name')}
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell
+                                            sx={{
+                                                color: 'primary.contrastText',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                userSelect: 'none',
+                                                '&:hover': { bgcolor: 'primary.dark' }
+                                            }}
+                                            onClick={() => handleSort('os')}
+                                        >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Operating System
+                                                {getSortIcon('os')}
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell
+                                            sx={{
+                                                color: 'primary.contrastText',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                userSelect: 'none',
+                                                '&:hover': { bgcolor: 'primary.dark' }
+                                            }}
+                                            onClick={() => handleSort('critical')}
+                                        >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Critical
+                                                {getSortIcon('critical')}
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell
+                                            sx={{
+                                                color: 'primary.contrastText',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                userSelect: 'none',
+                                                '&:hover': { bgcolor: 'primary.dark' }
+                                            }}
+                                            onClick={() => handleSort('status')}
+                                        >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                Status
+                                                {getSortIcon('status')}
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell
+                                            sx={{
+                                                color: 'primary.contrastText',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                userSelect: 'none',
+                                                '&:hover': { bgcolor: 'primary.dark' }
+                                            }}
+                                            onClick={() => handleSort('lastLogon')}
+                                        >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <CalendarTodayIcon fontSize="small" />
+                                                Last Logon
+                                                {getSortIcon('lastLogon')}
+                                            </Box>
+                                        </TableCell>
+                                        <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                            Actions
+                                        </TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {filteredAndSortedMachines.map((machine) => {
+                                        const machineKey = machine.objectGUID || machine.name || Math.random().toString();
+                                        const lastLogonDateStr = getLastLogonDate(machine);
+                                        const lastLogonDate = lastLogonDateStr ? new Date(lastLogonDateStr) : null;
+                                        const daysSinceLogon = lastLogonDate ? Math.floor((Date.now() - lastLogonDate) / (1000 * 60 * 60 * 24)) : null;
+                                        const isRecentlyActive = daysSinceLogon !== null && daysSinceLogon <= 7;
+                                        const statusColor = isRecentlyActive ? '#4caf50' : '#757575';
+                                        const isWindows = machine.operatingSystem && machine.operatingSystem.toLowerCase().includes('windows');
+
+                                        return (
+                                            <TableRow
+                                                key={machineKey}
+                                                sx={{
+                                                    '&:nth-of-type(odd)': { bgcolor: 'action.hover' },
+                                                    '&:hover': { bgcolor: 'action.selected' },
+                                                    borderLeft: `4px solid ${statusColor}`,
+                                                }}
+                                            >
+                                                <TableCell>
+                                                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                                        {machine.name || 'Unknown Machine'}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Typography variant="body2">
+                                                        {machine.operatingSystem || 'Unknown'}
+                                                    </Typography>
+                                                    {machine.operatingSystemVersion && (
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {machine.operatingSystemVersion}
+                                                        </Typography>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={machine.isCriticalSystemObject === "No" ? "Non-Critical" : "Critical"}
+                                                        size="small"
+                                                        color={machine.isCriticalSystemObject === "No" ? "success" : "error"}
+                                                        variant="filled"
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        variant="filled"
+                                                        color={isRecentlyActive ? "success" : "default"}
+                                                        size="small"
+                                                        label={isRecentlyActive ? "Active" : "Inactive"}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    {lastLogonDate ? (
+                                                        <Tooltip title={lastLogonDate.toLocaleString()}>
+                                                            <Box>
+                                                                <Typography variant="body2">
+                                                                    {lastLogonDate.toLocaleDateString()}
+                                                                </Typography>
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    {daysSinceLogon === 0 ? 'Today' :
+                                                                     daysSinceLogon === 1 ? 'Yesterday' :
+                                                                     `${daysSinceLogon} days ago`}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Tooltip>
+                                                    ) : (
+                                                        <Typography variant="body2" color="text.secondary">Never</Typography>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="contained"
+                                                        color="warning"
+                                                        size="small"
+                                                        startIcon={<RestartAltIcon />}
+                                                        onClick={() => handleRebootClick(machine)}
+                                                        disabled={!isWindows || rebootLoading[machine.name]}
+                                                        sx={{ minWidth: '90px' }}
+                                                    >
+                                                        {rebootLoading[machine.name] ? (
+                                                            <CircularProgress size={16} color="inherit" />
+                                                        ) : isWindows ? (
+                                                            'Reboot'
+                                                        ) : (
+                                                            'Disabled'
+                                                        )}
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                    {filteredAndSortedMachines.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={6} align="center">
+                                                <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                                                    No machines found matching the current filters
+                                                </Typography>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="caption" color="text.secondary">
+                                Showing {filteredAndSortedMachines.length} machines
+                            </Typography>
+                        </Box>
+                    </Box>
+                )}
+
                 {/* Windows Machines Section */}
-                {windowsMachines.length > 0 && (
+                {viewMode === 'grouped' && windowsMachines.length > 0 && (
                     <Box sx={{ mb: 4 }}>
                         <Box 
                             onClick={() => handleSectionToggle('windows')}
@@ -282,7 +663,8 @@ export default function Reboot(props) {
                                 <TableBody>
                                     {windowsMachines.map((machine) => {
                                 const machineKey = machine.objectGUID || machine.name || Math.random().toString();
-                                const lastLogonDate = machine.lastLogon ? new Date(machine.lastLogon) : null;
+                                const lastLogonDateStr = getLastLogonDate(machine);
+                                const lastLogonDate = lastLogonDateStr ? new Date(lastLogonDateStr) : null;
                                 const daysSinceLogon = lastLogonDate ? Math.floor((Date.now() - lastLogonDate) / (1000 * 60 * 60 * 24)) : null;
                                 const isRecentlyActive = daysSinceLogon !== null && daysSinceLogon <= 7;
                                 const statusColor = isRecentlyActive ? '#4caf50' : '#757575';
@@ -463,7 +845,7 @@ export default function Reboot(props) {
                 )}
 
                 {/* Mac Machines Section */}
-                {macMachines.length > 0 && (
+                {viewMode === 'grouped' && macMachines.length > 0 && (
                     <Box sx={{ mb: 4 }}>
                         <Box 
                             onClick={() => handleSectionToggle('mac')}
@@ -516,7 +898,8 @@ export default function Reboot(props) {
                                 <TableBody>
                                     {macMachines.map((machine) => {
                                         const machineKey = machine.objectGUID || machine.name || Math.random().toString();
-                                        const lastLogonDate = machine.lastLogon ? new Date(machine.lastLogon) : null;
+                                        const lastLogonDateStr = getLastLogonDate(machine);
+                                        const lastLogonDate = lastLogonDateStr ? new Date(lastLogonDateStr) : null;
                                         const daysSinceLogon = lastLogonDate ? Math.floor((Date.now() - lastLogonDate) / (1000 * 60 * 60 * 24)) : null;
                                         const isRecentlyActive = daysSinceLogon !== null && daysSinceLogon <= 7;
                                         const statusColor = isRecentlyActive ? '#4caf50' : '#757575';
@@ -693,7 +1076,7 @@ export default function Reboot(props) {
                 )}
 
                 {/* Linux Machines Section */}
-                {linuxMachines.length > 0 && (
+                {viewMode === 'grouped' && linuxMachines.length > 0 && (
                     <Box sx={{ mb: 4 }}>
                         <Box 
                             onClick={() => handleSectionToggle('linux')}
@@ -746,7 +1129,8 @@ export default function Reboot(props) {
                                 <TableBody>
                                     {linuxMachines.map((machine) => {
                                         const machineKey = machine.objectGUID || machine.name || Math.random().toString();
-                                        const lastLogonDate = machine.lastLogon ? new Date(machine.lastLogon) : null;
+                                        const lastLogonDateStr = getLastLogonDate(machine);
+                                        const lastLogonDate = lastLogonDateStr ? new Date(lastLogonDateStr) : null;
                                         const daysSinceLogon = lastLogonDate ? Math.floor((Date.now() - lastLogonDate) / (1000 * 60 * 60 * 24)) : null;
                                         const isRecentlyActive = daysSinceLogon !== null && daysSinceLogon <= 7;
                                         const statusColor = isRecentlyActive ? '#4caf50' : '#757575';
@@ -976,7 +1360,4 @@ export default function Reboot(props) {
                 </Snackbar>
             </Container>
         );
-    }
-    
-    return null;
 }
