@@ -11,7 +11,7 @@
  */
 
 import { useOktaAuth } from '@okta/okta-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useProtectedApiGet } from './hooks/useApi';
 import { 
@@ -74,14 +74,16 @@ import {
   SwapHoriz as SwapHorizIcon,
   AttachMoney as AttachMoneyIcon,
   WorkOutline as WorkOutlineIcon,
-  Slideshow as SlideshowIcon
+  Slideshow as SlideshowIcon,
+  Search as SearchIcon,
+  AutoAwesome as AutoAwesomeIcon
 } from '@mui/icons-material';
 
 // Email lists from Routes.jsx
 const restrictedEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co";
 const ITEmails = "kevin@buck.co,andrew.burnett@buck.co,harry.youngjones@buck.co,mj.hilomen@buck.co,daniel.hernandez@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co,mike.villasana@buck.co";
 
-const Navbar = () => {
+const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
   const { authState, oktaAuth } = useOktaAuth();
   const [collapsed, setCollapsed] = useState({
     userManagement: true,
@@ -97,6 +99,10 @@ const Navbar = () => {
   });
   const [logoSrc, setLogoSrc] = useState('/BUCK_B_Loop.gif');
 
+  // Resizable sidebar state
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef(null);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setLogoSrc('/Buck Square Logo.png');
@@ -104,6 +110,51 @@ const Navbar = () => {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // Handle resize functionality
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isResizing) return;
+
+    if (sidebarRef.current) {
+      const newWidth = e.clientX - sidebarRef.current.getBoundingClientRect().left;
+      if (newWidth >= 200 && newWidth <= 600) {
+        setSidebarWidth(newWidth);
+      }
+    }
+  }, [isResizing]);
+
+  const handleMouseUp = useCallback(() => {
+    if (isResizing) {
+      setIsResizing(false);
+      localStorage.setItem('navbarWidth', sidebarWidth.toString());
+    }
+  }, [isResizing, sidebarWidth]);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
 
   const userEmail = authState?.idToken?.claims?.email;
   const { data: oktaUserData } = useProtectedApiGet(
@@ -163,7 +214,20 @@ const Navbar = () => {
   }
 
   return (
-    <Paper elevation={0} sx={{ borderRadius: 0, height: '100%', boxShadow: 'none', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
+    <Paper
+      ref={sidebarRef}
+      elevation={0}
+      sx={{
+        borderRadius: 0,
+        height: '100%',
+        boxShadow: 'none',
+        backgroundColor: 'white',
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        position: 'relative'
+      }}
+    >
       <Box sx={{ pt: 2, pb: 1, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
         <Box
           component="img"
@@ -259,6 +323,10 @@ const Navbar = () => {
                   <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Parsec Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
+                <ListItemButton component={Link} to="/slackusers" id="slack-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Slack Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
                 <ListItemButton component={Link} to="/zoomusers" id="zoom-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Zoom Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -307,6 +375,25 @@ const Navbar = () => {
                           />
                         </ListItemIcon>
                         <ListItemText primary="OnBoard New Resident" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                      </ListItemButton>
+                    </Tooltip>
+                    <Tooltip title="Send welcome messages to new Slack users" placement="right">
+                      <ListItemButton component={Link} to="/welcomenewresident" id="welcome-new-resident-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                        <ListItemIcon>
+                          <Box
+                            component="img"
+                            src="/residence-logo.png"
+                            alt="Residence Logo"
+                            sx={{ width: 20, height: 20, objectFit: 'contain' }}
+                          />
+                        </ListItemIcon>
+                        <ListItemText primary="Welcome New Resident" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                      </ListItemButton>
+                    </Tooltip>
+                    <Tooltip title="Query Google Gemini AI" placement="right">
+                      <ListItemButton component={Link} to="/querygemini" id="query-gemini-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                        <ListItemIcon><AutoAwesomeIcon fontSize="small" /></ListItemIcon>
+                        <ListItemText primary="Query Gemini" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                       </ListItemButton>
                     </Tooltip>
                   </List>
@@ -524,6 +611,14 @@ const Navbar = () => {
                   <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Hammerspace Shares" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
+                <ListItemButton component={Link} to="/hammerspacenodes" id="hammerspace-nodes-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><StorageIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Hammerspace Nodes" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/hammerspacegateways" id="hammerspace-gateways-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><WifiIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Hammerspace Gateways" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
                 <ListItemButton component={Link} to="/hammerspacesites" id="hammerspace-sites-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><LocationOnIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Hammerspace Sites" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -612,6 +707,12 @@ const Navbar = () => {
                     <ListItemText primary="Glacier -> S3" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                   </ListItemButton>
                 </Tooltip>
+                <Tooltip title="Query S3 data using AWS Athena" placement="right">
+                  <ListItemButton component={Link} to="/querys3" id="query-s3-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><SearchIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Query S3" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                </Tooltip>
               </List>
             </Collapse>
 
@@ -676,6 +777,32 @@ const Navbar = () => {
             </Tooltip>
             <Collapse in={!collapsed.monitoring} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
+                <Tooltip title="View Buck API documentation and interactive endpoints" placement="right">
+                  <ListItemButton
+                    component="a"
+                    href="https://laxcoresrv.buck.local:8000/docs"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    id="buck-api-docs-button"
+                    sx={{ pl: 4, py: 0.5, minHeight: 32 }}
+                  >
+                    <ListItemIcon><DescriptionIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Buck API Docs" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                </Tooltip>
+                <Tooltip title="Access Celery task queue monitoring" placement="right">
+                  <ListItemButton
+                    component="a"
+                    href="http://amscoresrv.buck.local:5555/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    id="celery-server-button"
+                    sx={{ pl: 4, py: 0.5, minHeight: 32 }}
+                  >
+                    <ListItemIcon><DashboardIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Celery Server" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                </Tooltip>
                 <ListItemButton component={Link} to="/ptocalendar" id="pto-calendar-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><CalendarTodayIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="PTO Calendar" slotProps={{ primary: { fontSize: '0.875rem' } }} />
@@ -713,14 +840,6 @@ const Navbar = () => {
                 <ListItemButton component={Link} to="/apilogs" id="logs-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><TerminalIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Logs" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
-                <ListItemButton component={Link} to="/rapid7jobs" id="rapid7-jobs-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><SecurityIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Rapid7 Jobs" slotProps={{ primary: { fontSize: '0.875rem' } }} />
-                </ListItemButton>
-                <ListItemButton component={Link} to="/rapid7investigations" id="rapid7-investigations-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
-                  <ListItemIcon><FindInPageIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Rapid7 Investigations" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
               </List>
             </Collapse>
@@ -779,6 +898,25 @@ const Navbar = () => {
         )}
       </List>
       </Box>
+
+      {/* Resize Handle */}
+      <Box
+        onMouseDown={handleMouseDown}
+        sx={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: '4px',
+          height: '100%',
+          cursor: 'col-resize',
+          backgroundColor: 'transparent',
+          transition: 'background-color 0.2s ease',
+          '&:hover': {
+            backgroundColor: 'primary.main',
+          },
+          zIndex: 1000
+        }}
+      />
     </Paper>
   );
 };

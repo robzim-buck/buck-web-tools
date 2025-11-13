@@ -5,7 +5,8 @@ import {
   IconButton, Stack, Tabs, Tab, TableContainer, Table, TableHead,
   TableBody, TableRow, TableCell, Collapse, Alert, AlertTitle,
   Button, Accordion, AccordionSummary, AccordionDetails, Pagination,
-  Select, MenuItem, FormControl, InputLabel
+  Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel,
+  ToggleButtonGroup, ToggleButton, TableSortLabel
 } from '@mui/material';
 import { useAppData } from '../contexts/AppDataProvider';
 import {
@@ -14,7 +15,9 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   FilterAlt as FilterIcon,
-  Code as CodeIcon
+  Code as CodeIcon,
+  ViewList as ViewListIcon,
+  TableView as TableViewIcon
 } from '@mui/icons-material';
 
 const CompositeMachineInfo = ({
@@ -34,6 +37,9 @@ const CompositeMachineInfo = ({
   const [expandedRawData, setExpandedRawData] = useState({});
   const [activeTab, setActiveTab] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [headerOnly, setHeaderOnly] = useState(false);
+  const [gpuOnly, setGpuOnly] = useState(false);
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
   const [filters, setFilters] = useState({
     os: '',
     make: '',
@@ -41,8 +47,14 @@ const CompositeMachineInfo = ({
     user: '',
     pendingReboot: '',
     powerState: '',
-    hasGpu: ''
+    hasGpu: '',
+    lastConnected: '',
+    updated: ''
   });
+
+  // Sorting state
+  const [sortBy, setSortBy] = useState('');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -83,8 +95,19 @@ const CompositeMachineInfo = ({
       user: '',
       pendingReboot: '',
       powerState: '',
-      hasGpu: ''
+      hasGpu: '',
+      lastConnected: '',
+      updated: ''
     });
+    setSortBy('');
+    setSortOrder('asc');
+  };
+
+  // Handle table column sorting
+  const handleRequestSort = (property) => {
+    const isAsc = sortBy === property && sortOrder === 'asc';
+    setSortOrder(isAsc ? 'desc' : 'asc');
+    setSortBy(property);
   };
   
   // Format date strings
@@ -647,6 +670,9 @@ const CompositeMachineInfo = ({
         username: typeof parsecHostInfo?.name === 'object' ? JSON.stringify(parsecHostInfo.name) : (parsecHostInfo?.name || 'N/A'),
         online: parsecHostInfo?.machine_online ? 'Yes' : 'No',
         lastConnected: parsecHostInfo?.last_connected ? formatDate(parsecHostInfo.last_connected) : 'N/A',
+        lastConnectedRaw: parsecHostInfo?.last_connected || null,
+        updated: parsecHostInfo?.updated ? formatDate(parsecHostInfo.updated) : 'N/A',
+        updatedRaw: parsecHostInfo?.updated || null,
         guests: parsecHostInfo?.guests ? 'Yes' : 'No'
       },
       salt: {
@@ -753,6 +779,12 @@ const CompositeMachineInfo = ({
 
   // Apply additional filters
   const finalFilteredMachines = filteredMachines.filter(machine => {
+    // GPU Only filter - check if machine has nvidia GPUs
+    if (gpuOnly) {
+      const hasGpu = Array.isArray(machine.salt.nvidia) && machine.salt.nvidia.length > 0;
+      if (!hasGpu) return false;
+    }
+
     const passedOsFilter = !filters.os || machine.operatingSystem.toLowerCase().includes(filters.os.toLowerCase());
     const passedMakeFilter = !filters.make || machine.jamf.make.toLowerCase().includes(filters.make.toLowerCase());
     const passedModelFilter = !filters.model || machine.jamf.model.toLowerCase().includes(filters.model.toLowerCase());
@@ -801,8 +833,17 @@ const CompositeMachineInfo = ({
       return true;
     })();
 
+    // Last Connected filter
+    const passedLastConnectedFilter = !filters.lastConnected ||
+      machine.parsec.lastConnected.toLowerCase().includes(filters.lastConnected.toLowerCase());
+
+    // Updated filter
+    const passedUpdatedFilter = !filters.updated ||
+      machine.parsec.updated.toLowerCase().includes(filters.updated.toLowerCase());
+
     return passedOsFilter && passedMakeFilter && passedModelFilter && passedUserFilter &&
-           passedPendingRebootFilter && passedPowerStateFilter && passedGpuFilter;
+           passedPendingRebootFilter && passedPowerStateFilter && passedGpuFilter &&
+           passedLastConnectedFilter && passedUpdatedFilter;
   });
 
   // Debug filtering
@@ -813,9 +854,84 @@ const CompositeMachineInfo = ({
     searchTerm,
     filters
   });
-  
+
+  // Apply sorting
+  const sortedMachines = sortBy ? [...finalFilteredMachines].sort((a, b) => {
+    let aValue, bValue;
+
+    // Handle different sort columns
+    if (sortBy === 'name') {
+      aValue = (a.name || '').toLowerCase();
+      bValue = (b.name || '').toLowerCase();
+      return sortOrder === 'asc'
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    } else if (sortBy === 'lastAD') {
+      aValue = a.activeDirectory.lastLogonRaw || 0;
+      bValue = b.activeDirectory.lastLogonRaw || 0;
+    } else if (sortBy === 'lastParsec') {
+      aValue = a.parsec.lastConnectedRaw || 0;
+      bValue = b.parsec.lastConnectedRaw || 0;
+    } else if (sortBy === 'lastConnected') {
+      aValue = a.parsec.lastConnectedRaw || 0;
+      bValue = b.parsec.lastConnectedRaw || 0;
+    } else if (sortBy === 'updated') {
+      aValue = a.parsec.updatedRaw || 0;
+      bValue = b.parsec.updatedRaw || 0;
+    } else if (sortBy === 'os') {
+      aValue = (a.operatingSystem || '').toLowerCase();
+      bValue = (b.operatingSystem || '').toLowerCase();
+      return sortOrder === 'asc'
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    } else if (sortBy === 'user') {
+      aValue = (a.currentUser || '').toLowerCase();
+      bValue = (b.currentUser || '').toLowerCase();
+      return sortOrder === 'asc'
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    } else if (sortBy === 'cpu') {
+      aValue = a.salt.numCpus !== 'N/A' ? parseInt(a.salt.numCpus) : 0;
+      bValue = b.salt.numCpus !== 'N/A' ? parseInt(b.salt.numCpus) : 0;
+      return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+    } else if (sortBy === 'nvidia') {
+      // Sort by nvidia GPU - machines with GPUs first, then alphabetically by GPU name
+      const aHasGpu = Array.isArray(a.salt.nvidia) && a.salt.nvidia.length > 0;
+      const bHasGpu = Array.isArray(b.salt.nvidia) && b.salt.nvidia.length > 0;
+
+      if (aHasGpu && !bHasGpu) return sortOrder === 'asc' ? -1 : 1;
+      if (!aHasGpu && bHasGpu) return sortOrder === 'asc' ? 1 : -1;
+      if (!aHasGpu && !bHasGpu) return 0;
+
+      // Both have GPUs, sort alphabetically by GPU type
+      const aGpuText = a.salt.nvidia.map(gpu => {
+        if (typeof gpu === 'string') return gpu;
+        if (typeof gpu === 'object' && gpu !== null) return gpu.type || gpu.Type || '';
+        return '';
+      }).filter(text => text).join(', ').toLowerCase();
+
+      const bGpuText = b.salt.nvidia.map(gpu => {
+        if (typeof gpu === 'string') return gpu;
+        if (typeof gpu === 'object' && gpu !== null) return gpu.type || gpu.Type || '';
+        return '';
+      }).filter(text => text).join(', ').toLowerCase();
+
+      return sortOrder === 'asc'
+        ? aGpuText.localeCompare(bGpuText)
+        : bGpuText.localeCompare(aGpuText);
+    } else {
+      return 0;
+    }
+
+    // Convert to timestamps for date comparison
+    const aTime = aValue ? new Date(aValue).getTime() : 0;
+    const bTime = bValue ? new Date(bValue).getTime() : 0;
+
+    return sortOrder === 'asc' ? aTime - bTime : bTime - aTime;
+  }) : finalFilteredMachines;
+
   // Pagination logic
-  const totalMachines = finalFilteredMachines.length;
+  const totalMachines = sortedMachines.length;
   const totalPages = Math.ceil(totalMachines / rowsPerPage);
 
   // Debug logging for pagination
@@ -832,7 +948,7 @@ const CompositeMachineInfo = ({
 
   const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
-  const paginatedMachines = finalFilteredMachines.slice(startIndex, endIndex);
+  const paginatedMachines = sortedMachines.slice(startIndex, endIndex);
 
   console.log('Pagination Slice:', {
     currentPage,
@@ -893,7 +1009,46 @@ const CompositeMachineInfo = ({
       </Box>
       
       {/* Search */}
-      <Box sx={{ mb: dense ? 2 : 3, display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ mb: dense ? 2 : 3, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={headerOnly}
+                onChange={(e) => setHeaderOnly(e.target.checked)}
+                size="small"
+              />
+            }
+            label={<Typography variant="body2">Header Only</Typography>}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={gpuOnly}
+                onChange={(e) => setGpuOnly(e.target.checked)}
+                size="small"
+              />
+            }
+            label={<Typography variant="body2">GPU Only</Typography>}
+          />
+
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_, newMode) => newMode && setViewMode(newMode)}
+            size="small"
+          >
+            <ToggleButton value="card" aria-label="card view">
+              <ViewListIcon fontSize="small" sx={{ mr: 0.5 }} />
+              Card
+            </ToggleButton>
+            <ToggleButton value="table" aria-label="table view">
+              <TableViewIcon fontSize="small" sx={{ mr: 0.5 }} />
+              Table
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <TextField
             placeholder="Search machines..."
@@ -915,9 +1070,9 @@ const CompositeMachineInfo = ({
               )
             }}
           />
-          
-          <IconButton 
-            size="small" 
+
+          <IconButton
+            size="small"
             color={showFilters ? "primary" : "default"}
             onClick={() => setShowFilters(!showFilters)}
             sx={{ border: showFilters ? '1px solid' : 'none' }}
@@ -1056,6 +1211,64 @@ const CompositeMachineInfo = ({
                 <option value="no">No</option>
               </TextField>
             </Grid>
+            <Grid item xs={12} sm={3}>
+              <TextField
+                label="Last Connected"
+                size="small"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={filters.lastConnected}
+                onChange={(e) => setFilters({ ...filters, lastConnected: e.target.value })}
+                sx={{ bgcolor: 'background.paper' }}
+                placeholder="Filter by date..."
+              />
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <TextField
+                label="Updated"
+                size="small"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={filters.updated}
+                onChange={(e) => setFilters({ ...filters, updated: e.target.value })}
+                sx={{ bgcolor: 'background.paper' }}
+                placeholder="Filter by date..."
+              />
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <TextField
+                label="Sort By"
+                size="small"
+                fullWidth
+                select
+                SelectProps={{ native: true }}
+                InputLabelProps={{ shrink: true }}
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                sx={{ bgcolor: 'background.paper' }}
+              >
+                <option value="">None</option>
+                <option value="lastConnected">Last Connected</option>
+                <option value="updated">Updated</option>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={3}>
+              <TextField
+                label="Sort Order"
+                size="small"
+                fullWidth
+                select
+                SelectProps={{ native: true }}
+                InputLabelProps={{ shrink: true }}
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                sx={{ bgcolor: 'background.paper' }}
+                disabled={!sortBy}
+              >
+                <option value="asc">Oldest First</option>
+                <option value="desc">Newest First</option>
+              </TextField>
+            </Grid>
             <Grid item xs={12}>
               <Button
                 variant="outlined"
@@ -1122,8 +1335,8 @@ const CompositeMachineInfo = ({
           <Typography variant="h6" color="text.secondary" gutterBottom>
             No machines match your search or filters
           </Typography>
-          <Button 
-            variant="outlined" 
+          <Button
+            variant="outlined"
             onClick={() => {
               setSearchTerm('');
               handleFiltersReset();
@@ -1134,7 +1347,231 @@ const CompositeMachineInfo = ({
             Clear All Filters
           </Button>
         </Paper>
+      ) : viewMode === 'table' ? (
+        /* Table View */
+        <TableContainer component={Paper} sx={{ maxHeight: dense ? '600px' : '800px' }}>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'name'}
+                    direction={sortBy === 'name' ? sortOrder : 'asc'}
+                    onClick={() => handleRequestSort('name')}
+                    sx={{
+                      color: 'white !important',
+                      '& .MuiTableSortLabel-icon': {
+                        color: 'white !important'
+                      },
+                      '&.Mui-active': {
+                        color: 'white !important'
+                      }
+                    }}
+                  >
+                    Machine Name
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'lastAD'}
+                    direction={sortBy === 'lastAD' ? sortOrder : 'asc'}
+                    onClick={() => handleRequestSort('lastAD')}
+                    sx={{
+                      color: 'white !important',
+                      '& .MuiTableSortLabel-icon': {
+                        color: 'white !important'
+                      },
+                      '&.Mui-active': {
+                        color: 'white !important'
+                      }
+                    }}
+                  >
+                    Last AD
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'lastParsec'}
+                    direction={sortBy === 'lastParsec' ? sortOrder : 'asc'}
+                    onClick={() => handleRequestSort('lastParsec')}
+                    sx={{
+                      color: 'white !important',
+                      '& .MuiTableSortLabel-icon': {
+                        color: 'white !important'
+                      },
+                      '&.Mui-active': {
+                        color: 'white !important'
+                      }
+                    }}
+                  >
+                    Last Parsec
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'os'}
+                    direction={sortBy === 'os' ? sortOrder : 'asc'}
+                    onClick={() => handleRequestSort('os')}
+                    sx={{
+                      color: 'white !important',
+                      '& .MuiTableSortLabel-icon': {
+                        color: 'white !important'
+                      },
+                      '&.Mui-active': {
+                        color: 'white !important'
+                      }
+                    }}
+                  >
+                    Operating System
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'user'}
+                    direction={sortBy === 'user' ? sortOrder : 'asc'}
+                    onClick={() => handleRequestSort('user')}
+                    sx={{
+                      color: 'white !important',
+                      '& .MuiTableSortLabel-icon': {
+                        color: 'white !important'
+                      },
+                      '&.Mui-active': {
+                        color: 'white !important'
+                      }
+                    }}
+                  >
+                    Current User
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'cpu'}
+                    direction={sortBy === 'cpu' ? sortOrder : 'asc'}
+                    onClick={() => handleRequestSort('cpu')}
+                    sx={{
+                      color: 'white !important',
+                      '& .MuiTableSortLabel-icon': {
+                        color: 'white !important'
+                      },
+                      '&.Mui-active': {
+                        color: 'white !important'
+                      }
+                    }}
+                  >
+                    CPU/Memory
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>
+                  <TableSortLabel
+                    active={sortBy === 'nvidia'}
+                    direction={sortBy === 'nvidia' ? sortOrder : 'asc'}
+                    onClick={() => handleRequestSort('nvidia')}
+                    sx={{
+                      color: 'white !important',
+                      '& .MuiTableSortLabel-icon': {
+                        color: 'white !important'
+                      },
+                      '&.Mui-active': {
+                        color: 'white !important'
+                      }
+                    }}
+                  >
+                    NVIDIA GPU
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ bgcolor: 'primary.main', color: 'white', fontWeight: 600 }}>
+                  Status
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginatedMachines.map((machine, index) => (
+                <TableRow
+                  key={machine.id}
+                  sx={{
+                    '&:hover': { bgcolor: 'action.hover' },
+                    bgcolor: index % 2 === 0 ? 'background.paper' : 'action.selected'
+                  }}
+                >
+                  <TableCell>
+                    <Typography variant="body2" fontWeight="medium">
+                      {machine.name}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
+                      {machine.activeDirectory.lastLogon !== 'N/A' ? machine.activeDirectory.lastLogon : '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2' }}>
+                      {machine.parsec.lastConnected !== 'N/A' ? machine.parsec.lastConnected : '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {machine.operatingSystem !== 'N/A' ? machine.operatingSystem : '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">
+                      {machine.currentUser !== 'N/A' ? machine.currentUser : '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexDirection: 'column' }}>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                        {machine.salt.numCpus !== 'N/A' ? `${machine.salt.numCpus} CPU(s)` : 'N/A'}
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                        {machine.salt.totalMemory !== 'N/A' ? `${Math.round(machine.salt.totalMemory / 1024)} GB` : 'N/A'}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    {Array.isArray(machine.salt.nvidia) && machine.salt.nvidia.length > 0 ? (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 600, color: '#f093fb' }}>
+                        {machine.salt.nvidia.map(gpu => {
+                          if (typeof gpu === 'string') return gpu;
+                          if (typeof gpu === 'object' && gpu !== null) {
+                            return gpu.type || gpu.Type || '';
+                          }
+                          return '';
+                        }).filter(text => text && text !== 'null' && text !== 'undefined').join(', ')}
+                      </Typography>
+                    ) : (
+                      <Typography variant="body2" sx={{ fontSize: '0.75rem', color: '#999' }}>
+                        -
+                      </Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                      {machine.parsec.connected && (
+                        <Chip
+                          size="small"
+                          label="Online"
+                          color="success"
+                          sx={{ height: '20px', fontSize: '0.65rem' }}
+                        />
+                      )}
+                      {machine.salt.pendingReboot && (
+                        <Chip
+                          size="small"
+                          label="Reboot"
+                          color="warning"
+                          sx={{ height: '20px', fontSize: '0.65rem' }}
+                        />
+                      )}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : (
+        /* Card View */
         <Box sx={{ maxHeight: dense ? '600px' : '800px', overflow: 'auto' }}>
           <Grid container spacing={0.5}>
             {paginatedMachines.map(machine => {
@@ -1151,24 +1588,101 @@ const CompositeMachineInfo = ({
                   sx={{
                     p: dense ? 0.75 : 1.5,
                     '&:last-child': { pb: dense ? 0.75 : 1.5 },
-                    cursor: 'pointer'
+                    cursor: headerOnly ? 'default' : 'pointer'
                   }}
-                  onClick={() => toggleMachineExpand(machine.id)}
+                  onClick={() => !headerOnly && toggleMachineExpand(machine.id)}
                 >
                   <Grid container spacing={0.25} alignItems="flex-start">
                     {/* Machine name and expand button */}
-                    <Grid item xs={10}>
+                    <Grid item xs={headerOnly ? 12 : 10}>
                       <Typography variant={dense ? "body1" : "subtitle1"} fontWeight="medium" gutterBottom={!dense}>
                         {machine.name}
                       </Typography>
+
+                      {/* Parsec Username - Prominently displayed */}
+                      {machine.parsec.username && machine.parsec.username !== 'N/A' && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25, mb: 0.25 }}>
+                          <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.75rem', color: '#666', fontWeight: 500 }}>
+                            Parsec User:
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.75rem', fontWeight: 700, color: '#667eea' }}>
+                            {machine.parsec.username}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      {/* Last AD and Last Parsec - Prominently displayed */}
+                      <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
+                        {machine.activeDirectory.lastLogon !== 'N/A' && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.7rem', color: '#666', fontWeight: 500 }}>
+                              Last AD:
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.7rem', fontWeight: 600, color: '#1976d2' }}>
+                              {machine.activeDirectory.lastLogon}
+                            </Typography>
+                          </Box>
+                        )}
+                        {machine.parsec.lastConnected !== 'N/A' && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.7rem', color: '#666', fontWeight: 500 }}>
+                              Last Parsec:
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.7rem', fontWeight: 600, color: '#1976d2' }}>
+                              {machine.parsec.lastConnected}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+
+                      {/* GPU and CPU Info - Prominently displayed */}
+                      <Box sx={{ display: 'flex', gap: 2, mt: 0.5, flexWrap: 'wrap' }}>
+                        {/* CPU Info */}
+                        {machine.salt.numCpus !== 'N/A' && (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.7rem', color: '#666', fontWeight: 500 }}>
+                              CPU:
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.7rem', fontWeight: 700, color: '#667eea' }}>
+                              {machine.salt.numCpus}
+                            </Typography>
+                          </Box>
+                        )}
+
+                        {/* GPU Info */}
+                        {Array.isArray(machine.salt.nvidia) && machine.salt.nvidia.length > 0 && (() => {
+                          const gpuText = machine.salt.nvidia.map(gpu => {
+                            if (typeof gpu === 'string') return gpu;
+                            if (typeof gpu === 'object' && gpu !== null) {
+                              // Extract the 'type' field from the nvidia object
+                              return gpu.type || gpu.Type || '';
+                            }
+                            return '';
+                          }).filter(text => text && text !== 'null' && text !== 'undefined').join(', ');
+                          return gpuText !== '' ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.7rem', color: '#666', fontWeight: 500 }}>
+                                GPU:
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontSize: dense ? '0.65rem' : '0.7rem', fontWeight: 700, color: '#f093fb' }}>
+                                {gpuText}
+                              </Typography>
+                            </Box>
+                          ) : null;
+                        })()}
+                      </Box>
                     </Grid>
+                    {!headerOnly && (
                     <Grid item xs={2} sx={{ textAlign: 'right' }}>
                       <IconButton size="small">
                         {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                       </IconButton>
                     </Grid>
+                    )}
 
                     {/* Hardware Information Layout - 8 Column Grid (or 4 column when dense) */}
+                    {!headerOnly && (
+                    <>
                     <Box sx={{ mt: 0.5, mb: 1, width: '100%' }}>
                       <Grid container spacing={0.5} sx={{ width: '100%', m: 0 }}>
                         {/* Column 1 - System Info */}
@@ -1275,25 +1789,28 @@ const CompositeMachineInfo = ({
                             </Box>
                           </Box>
 
-                          {/* Pending Reboot */}
-                          {machine.salt.pendingReboot && (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', py: 0.25, borderBottom: '1px solid #f0f0f0', px: 0.5 }}>
-                              <Typography variant="body2" sx={{ color: '#666', fontSize: dense ? '0.6rem' : '0.65rem', lineHeight: 1.2 }}>
-                                Reboot
+                          {/* Pending Reboot - Always Display */}
+                          <Box sx={{ display: 'flex', flexDirection: 'column', py: 0.25, borderBottom: '1px solid #f0f0f0', px: 0.5 }}>
+                            <Typography variant="body2" sx={{ color: '#666', fontSize: dense ? '0.6rem' : '0.65rem', lineHeight: 1.2 }}>
+                              Reboot
+                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Box sx={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                bgcolor: machine.salt.pendingReboot ? '#ff9800' : '#4caf50'
+                              }} />
+                              <Typography variant="body2" sx={{
+                                fontSize: dense ? '0.6rem' : '0.65rem',
+                                fontWeight: 500,
+                                lineHeight: 1.2,
+                                color: machine.salt.pendingReboot ? '#ff9800' : '#4caf50'
+                              }}>
+                                {machine.salt.pendingReboot ? 'Pending' : 'No'}
                               </Typography>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Box sx={{
-                                  width: 6,
-                                  height: 6,
-                                  borderRadius: '50%',
-                                  bgcolor: '#ff9800'
-                                }} />
-                                <Typography variant="body2" sx={{ fontSize: dense ? '0.6rem' : '0.65rem', fontWeight: 500, lineHeight: 1.2, color: '#ff9800' }}>
-                                  Pending
-                                </Typography>
-                              </Box>
                             </Box>
-                          )}
+                          </Box>
                         </Grid>
 
                         {/* Column 3 - User & Hardware */}
@@ -1589,23 +2106,13 @@ const CompositeMachineInfo = ({
                               Activity Information
                             </Typography>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                              {machine.activeDirectory.lastLogon !== 'N/A' && (
+                              {machine.parsec.updated !== 'N/A' && (
                                 <Box sx={{ py: 0.25, borderBottom: '1px solid #f0f0f0', px: 0.5 }}>
                                   <Typography variant="body2" sx={{ fontSize: dense ? '0.6rem' : '0.65rem', color: '#666', lineHeight: 1.2 }}>
-                                    Last AD
+                                    Parsec Updated
                                   </Typography>
                                   <Typography variant="body2" sx={{ fontSize: dense ? '0.6rem' : '0.65rem', fontWeight: 500, lineHeight: 1.2 }}>
-                                    {machine.activeDirectory.lastLogon}
-                                  </Typography>
-                                </Box>
-                              )}
-                              {machine.parsec.lastConnected !== 'N/A' && (
-                                <Box sx={{ py: 0.25, borderBottom: '1px solid #f0f0f0', px: 0.5 }}>
-                                  <Typography variant="body2" sx={{ fontSize: dense ? '0.6rem' : '0.65rem', color: '#666', lineHeight: 1.2 }}>
-                                    Last Parsec
-                                  </Typography>
-                                  <Typography variant="body2" sx={{ fontSize: dense ? '0.6rem' : '0.65rem', fontWeight: 500, lineHeight: 1.2 }}>
-                                    {machine.parsec.lastConnected}
+                                    {machine.parsec.updated}
                                   </Typography>
                                 </Box>
                               )}
@@ -2016,6 +2523,8 @@ const CompositeMachineInfo = ({
                           })()}
                         </Box>
                       </Box>
+                    )}
+                    </>
                     )}
                   </Grid>
                 </CardContent>
@@ -2712,6 +3221,12 @@ const CompositeMachineInfo = ({
                                       Last Connected
                                     </TableCell>
                                     <TableCell>{machine.parsec.lastConnected}</TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell sx={{ fontWeight: 'medium' }}>
+                                      Updated
+                                    </TableCell>
+                                    <TableCell>{machine.parsec.updated}</TableCell>
                                   </TableRow>
                                   <TableRow>
                                     <TableCell sx={{ fontWeight: 'medium' }}>

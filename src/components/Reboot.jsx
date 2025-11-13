@@ -262,14 +262,13 @@ export default function Reboot(props) {
 
     // Separate machines by operating system
     const windowsMachines = useMemo(() => {
-        const allWindows = sortedData.filter(machine =>
+        return filteredAndSortedMachines.filter(machine =>
             machine.operatingSystem && machine.operatingSystem.toLowerCase().includes('windows')
         );
-        return showActiveOnly ? allWindows.filter(isActiveSystem) : allWindows;
-    }, [sortedData, showActiveOnly]);
+    }, [filteredAndSortedMachines]);
 
     const macMachines = useMemo(() => {
-        const allMac = sortedData.filter(machine =>
+        return filteredAndSortedMachines.filter(machine =>
             machine.operatingSystem && (
                 machine.operatingSystem.toLowerCase().includes('mac') ||
                 machine.operatingSystem.toLowerCase().includes('darwin') ||
@@ -277,11 +276,10 @@ export default function Reboot(props) {
                 machine.operatingSystem.toLowerCase().includes('os x')
             )
         );
-        return showActiveOnly ? allMac.filter(isActiveSystem) : allMac;
-    }, [sortedData, showActiveOnly]);
+    }, [filteredAndSortedMachines]);
 
     const linuxMachines = useMemo(() => {
-        const allLinux = sortedData.filter(machine =>
+        return filteredAndSortedMachines.filter(machine =>
             machine.operatingSystem && (
                 machine.operatingSystem.toLowerCase().includes('linux') ||
                 machine.operatingSystem.toLowerCase().includes('ubuntu') ||
@@ -290,8 +288,7 @@ export default function Reboot(props) {
                 machine.operatingSystem.toLowerCase().includes('debian')
             )
         );
-        return showActiveOnly ? allLinux.filter(isActiveSystem) : allLinux;
-    }, [sortedData, showActiveOnly]);
+    }, [filteredAndSortedMachines]);
 
     const criticalSystems = useMemo(() => {
         return sortedData.filter(machine => machine.isCriticalSystemObject !== "No").length;
@@ -352,39 +349,37 @@ export default function Reboot(props) {
                         Note: only Windows Machines are Rebootable at this time
                     </Typography>
 
-                    {viewMode === 'table' && (
-                        <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                            <TextField
-                                size="small"
-                                placeholder="Search machines..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                slotProps={{
-                                    input: {
-                                        startAdornment: (
-                                            <InputAdornment position="start">
-                                                <SearchIcon fontSize="small" />
-                                            </InputAdornment>
-                                        )
-                                    }
-                                }}
-                                sx={{ minWidth: 250 }}
-                            />
-                            <FormControl size="small" sx={{ minWidth: 120 }}>
-                                <InputLabel>OS Type</InputLabel>
-                                <Select
-                                    value={osFilter}
-                                    onChange={(e) => setOsFilter(e.target.value)}
-                                    label="OS Type"
-                                >
-                                    <MenuItem value="all">All OS</MenuItem>
-                                    <MenuItem value="windows">Windows</MenuItem>
-                                    <MenuItem value="mac">Mac</MenuItem>
-                                    <MenuItem value="linux">Linux</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Box>
-                    )}
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                        <TextField
+                            size="small"
+                            placeholder="Search machines..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            slotProps={{
+                                input: {
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <SearchIcon fontSize="small" />
+                                        </InputAdornment>
+                                    )
+                                }
+                            }}
+                            sx={{ minWidth: 250 }}
+                        />
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <InputLabel>OS Type</InputLabel>
+                            <Select
+                                value={osFilter}
+                                onChange={(e) => setOsFilter(e.target.value)}
+                                label="OS Type"
+                            >
+                                <MenuItem value="all">All OS</MenuItem>
+                                <MenuItem value="windows">Windows</MenuItem>
+                                <MenuItem value="mac">Mac</MenuItem>
+                                <MenuItem value="linux">Linux</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Box>
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

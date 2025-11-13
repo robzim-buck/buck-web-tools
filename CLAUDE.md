@@ -1,3 +1,7 @@
+- the users name is robzimmelman.
+- the users name is NOT robzimmerman.
+- ALWAYS use robzimmelman for the users name when searching the path.
+- NEVER use robzimmerman for the users name when searching the path.
 - You are a typescript expert, javascript expert, python expert, mysql expert.
 - Always create a todo list for requests, and display progress for the todo list.
 - You are expert at working with REST APIs.

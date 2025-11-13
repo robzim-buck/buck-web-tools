@@ -296,8 +296,9 @@ export default function ActiveSelfServLicenses(props) {
     
     // Add state for selected licenses in table view
     const [selectedLicenses, setSelectedLicenses] = useState([]);
-    const [productForBulkReturn, setProductForBulkReturn] = useState('');
-    
+    const [productForBulkReturn, setProductForBulkReturn] = useState([]);
+    const [filterMode, setFilterMode] = useState('OR'); // 'OR' or 'AND'
+
     // Function to toggle user card expansion
     const toggleUserExpand = (email) => {
         setExpandedUsers(prev => ({
@@ -793,7 +794,7 @@ export default function ActiveSelfServLicenses(props) {
     React.useEffect(() => {
         setSelectedLicenses([]);
         if (!tableView) {
-            setProductForBulkReturn('');
+            setProductForBulkReturn([]);
         }
     }, [tableView, emailfilter, productfilter]);
     
@@ -909,8 +910,40 @@ export default function ActiveSelfServLicenses(props) {
         
         // Apply product filter for bulk return (table view only)
         if (productForBulkReturn && productForBulkReturn.length > 0) {
-            console.log('Filtering by product for bulk return:', productForBulkReturn);
-            filteredData = filteredData.filter((f) => f.product && f.product.toLowerCase() === productForBulkReturn.toLowerCase());
+            console.log('Filtering by products for bulk return:', productForBulkReturn, 'Mode:', filterMode);
+
+            if (filterMode === 'OR') {
+                // OR mode: Show licenses that match ANY of the selected products
+                filteredData = filteredData.filter((f) =>
+                    f.product && productForBulkReturn.some(selectedProduct =>
+                        f.product.toLowerCase() === selectedProduct.toLowerCase()
+                    )
+                );
+            } else if (filterMode === 'AND') {
+                // AND mode: Show only users who have licenses for ALL selected products
+                // First, group licenses by email
+                const licensesByEmail = {};
+                filteredData.forEach(license => {
+                    if (!licensesByEmail[license.email]) {
+                        licensesByEmail[license.email] = [];
+                    }
+                    licensesByEmail[license.email].push(license);
+                });
+
+                // Find users who have all selected products
+                const emailsWithAllProducts = Object.keys(licensesByEmail).filter(email => {
+                    const userProducts = licensesByEmail[email].map(l => l.product.toLowerCase());
+                    return productForBulkReturn.every(selectedProduct =>
+                        userProducts.includes(selectedProduct.toLowerCase())
+                    );
+                });
+
+                // Filter to show only licenses for users who have all selected products
+                filteredData = filteredData.filter(license =>
+                    emailsWithAllProducts.includes(license.email)
+                );
+            }
+
             console.log('After product bulk filter, items:', filteredData.length);
         }
         
@@ -939,25 +972,70 @@ export default function ActiveSelfServLicenses(props) {
             ];
         }
 
-        // Function to export email list to CSV
+        // Function to export license list to CSV
         const exportEmailList = () => {
-            // Get unique emails from filteredData
-            const uniqueEmails = [...new Set(filteredData.map(license => license.email))].filter(Boolean);
-
-            if (uniqueEmails.length === 0) {
-                alert('No emails to export');
+            if (filteredData.length === 0) {
+                alert('No licenses to export');
                 return;
             }
 
-            // Create CSV content
-            const csvContent = uniqueEmails.join('\n');
+            // Helper function to escape CSV values
+            const escapeCSV = (value) => {
+                if (value === null || value === undefined) return '';
+                const stringValue = String(value);
+                // Escape quotes and wrap in quotes if contains comma, quote, or newline
+                if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                    return `"${stringValue.replace(/"/g, '""')}"`;
+                }
+                return stringValue;
+            };
+
+            // Helper function to format date
+            const formatDate = (dateString) => {
+                if (!dateString) return '';
+                try {
+                    const date = new Date(dateString);
+                    return date.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    });
+                } catch (e) {
+                    return dateString;
+                }
+            };
+
+            // Create CSV header
+            const headers = ['email', 'product', 'issued', 'expires', 'status'];
+            const csvRows = [headers.join(',')];
+
+            // Add data rows
+            filteredData.forEach(license => {
+                const expiryDate = new Date(license.expiry);
+                const timeToExpire = expiryDate - Date.now();
+                const status = setChipLabel(timeToExpire);
+
+                const row = [
+                    escapeCSV(license.email),
+                    escapeCSV(license.product),
+                    escapeCSV(formatDate(license.timestamp)),
+                    escapeCSV(formatDate(license.expiry)),
+                    escapeCSV(status)
+                ];
+                csvRows.push(row.join(','));
+            });
+
+            const csvContent = csvRows.join('\n');
 
             // Create and download the file
-            const blob = new Blob([csvContent], { type: 'text/plain;charset=utf-8;' });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
             link.setAttribute('href', url);
-            link.setAttribute('download', `active_licenses_emails_${new Date().toISOString().split('T')[0]}.txt`);
+            link.setAttribute('download', `active_licenses_${new Date().toISOString().split('T')[0]}.csv`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
@@ -1158,12 +1236,24 @@ export default function ActiveSelfServLicenses(props) {
                                     <FormControl size="small" sx={{ minWidth: 200, backgroundColor: 'white' }}>
                                         <InputLabel>Filter by Product</InputLabel>
                                         <Select
+                                            multiple
                                             value={productForBulkReturn}
                                             onChange={(e) => {
                                                 setProductForBulkReturn(e.target.value);
                                             }}
                                             label="Filter by Product"
                                             sx={{ backgroundColor: 'white' }}
+                                            renderValue={(selected) => (
+                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                                    {selected.length === 0 ? (
+                                                        <span>All Products</span>
+                                                    ) : (
+                                                        selected.map((value) => (
+                                                            <Chip key={value} label={value} size="small" />
+                                                        ))
+                                                    )}
+                                                </Box>
+                                            )}
                                             MenuProps={{
                                                 PaperProps: {
                                                     style: {
@@ -1173,18 +1263,66 @@ export default function ActiveSelfServLicenses(props) {
                                                 }
                                             }}
                                         >
-                                            <MenuItem value="">All Products</MenuItem>
-                                            <MenuItem value="adobe">Adobe</MenuItem>
-                                            <MenuItem value="acrobat">Acrobat</MenuItem>
-                                            <MenuItem value="substance">Substance</MenuItem>
-                                            <MenuItem value="figma">Figma</MenuItem>
-                                            <MenuItem value="figjam">Figjam</MenuItem>
-                                            <MenuItem value="figmafigjam">Figma/Figjam</MenuItem>
-                                            <MenuItem value="mso365">MS Office 365</MenuItem>
-                                            <MenuItem value="maya">Maya</MenuItem>
-                                            <MenuItem value="aquarium">Aquarium</MenuItem>
+                                            <MenuItem value="adobe">
+                                                <Checkbox checked={productForBulkReturn.indexOf('adobe') > -1} />
+                                                Adobe
+                                            </MenuItem>
+                                            <MenuItem value="acrobat">
+                                                <Checkbox checked={productForBulkReturn.indexOf('acrobat') > -1} />
+                                                Acrobat
+                                            </MenuItem>
+                                            <MenuItem value="substance">
+                                                <Checkbox checked={productForBulkReturn.indexOf('substance') > -1} />
+                                                Substance
+                                            </MenuItem>
+                                            <MenuItem value="figma">
+                                                <Checkbox checked={productForBulkReturn.indexOf('figma') > -1} />
+                                                Figma
+                                            </MenuItem>
+                                            <MenuItem value="figjam">
+                                                <Checkbox checked={productForBulkReturn.indexOf('figjam') > -1} />
+                                                Figjam
+                                            </MenuItem>
+                                            <MenuItem value="figmafigjam">
+                                                <Checkbox checked={productForBulkReturn.indexOf('figmafigjam') > -1} />
+                                                Figma/Figjam
+                                            </MenuItem>
+                                            <MenuItem value="mso365">
+                                                <Checkbox checked={productForBulkReturn.indexOf('mso365') > -1} />
+                                                MS Office 365
+                                            </MenuItem>
+                                            <MenuItem value="maya">
+                                                <Checkbox checked={productForBulkReturn.indexOf('maya') > -1} />
+                                                Maya
+                                            </MenuItem>
+                                            <MenuItem value="aquarium">
+                                                <Checkbox checked={productForBulkReturn.indexOf('aquarium') > -1} />
+                                                Aquarium
+                                            </MenuItem>
                                         </Select>
                                     </FormControl>
+                                )}
+                                {tableView && productForBulkReturn.length > 1 && (
+                                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', backgroundColor: 'white', borderRadius: 1, p: 0.5 }}>
+                                        <Button
+                                            size="small"
+                                            variant={filterMode === 'OR' ? 'contained' : 'outlined'}
+                                            color={filterMode === 'OR' ? 'primary' : 'inherit'}
+                                            onClick={() => setFilterMode('OR')}
+                                            sx={{ minWidth: 50 }}
+                                        >
+                                            OR
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            variant={filterMode === 'AND' ? 'contained' : 'outlined'}
+                                            color={filterMode === 'AND' ? 'primary' : 'inherit'}
+                                            onClick={() => setFilterMode('AND')}
+                                            sx={{ minWidth: 50 }}
+                                        >
+                                            AND
+                                        </Button>
+                                    </Box>
                                 )}
                                 <Button
                                     variant="contained"
@@ -1339,7 +1477,7 @@ export default function ActiveSelfServLicenses(props) {
                                             onClick={exportEmailList}
                                             startIcon={<DownloadIcon />}
                                         >
-                                            Export Email List
+                                            Export to CSV
                                         </Button>
                                         {selectedLicenses.length > 0 && (
                                             <>

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import axios from 'axios';
-import { 
-  Typography, Button, Box, Container, Grid, 
+import {
+  Typography, Button, Box, Container, Grid,
   Card, CardContent, Chip, Divider, Alert, Snackbar,
   Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
-  TextField, InputAdornment
+  TextField, InputAdornment, ToggleButtonGroup, ToggleButton
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
@@ -13,6 +13,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import MemoryIcon from '@mui/icons-material/Memory';
 import StorageIcon from '@mui/icons-material/Storage';
+import { ViewList as ViewListIcon, TableView as TableViewIcon } from '@mui/icons-material';
 import { useQueries } from "@tanstack/react-query";
 import CircularProgress from '@mui/material/CircularProgress';
 import uuid from 'react-uuid';
@@ -20,6 +21,7 @@ import uuid from 'react-uuid';
 export default function VMWareHosts(props) {
   // State for search filters and notifications
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
   const [selectedHost, setSelectedHost] = useState(null);
   const [dialogAction, setDialogAction] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -241,35 +243,53 @@ export default function VMWareHosts(props) {
     };
 
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* Header */}
         <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Typography variant='h4' color="primary" fontWeight="medium">
             {props.name || 'VMWare VDI Hosts'}
           </Typography>
-          
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Chip 
-              icon={<StorageIcon />}
-              label={`${hostStats.total} Total Hosts`} 
-              color="primary" 
-              variant="outlined" 
-              sx={{ fontWeight: 'bold' }}
-            />
-            <Chip 
-              icon={<PlayArrowIcon />}
-              label={`${hostStats.poweredOn} On`} 
-              color="success" 
-              variant="outlined" 
-              sx={{ fontWeight: 'bold' }}
-            />
-            <Chip 
-              icon={<StopIcon />}
-              label={`${hostStats.poweredOff} Off`} 
-              color="error" 
-              variant="outlined" 
-              sx={{ fontWeight: 'bold' }}
-            />
+
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Chip
+                icon={<StorageIcon />}
+                label={`${hostStats.total} Total Hosts`}
+                color="primary"
+                variant="outlined"
+                sx={{ fontWeight: 'bold' }}
+              />
+              <Chip
+                icon={<PlayArrowIcon />}
+                label={`${hostStats.poweredOn} On`}
+                color="success"
+                variant="outlined"
+                sx={{ fontWeight: 'bold' }}
+              />
+              <Chip
+                icon={<StopIcon />}
+                label={`${hostStats.poweredOff} Off`}
+                color="error"
+                variant="outlined"
+                sx={{ fontWeight: 'bold' }}
+              />
+            </Box>
+
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+            >
+              <ToggleButton value="card" aria-label="card view">
+                <ViewListIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Card
+              </ToggleButton>
+              <ToggleButton value="table" aria-label="table view">
+                <TableViewIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Table
+              </ToggleButton>
+            </ToggleButtonGroup>
           </Box>
         </Box>
 
@@ -293,112 +313,298 @@ export default function VMWareHosts(props) {
         </Box>
 
         {/* Host listing */}
-        <Paper sx={{ width: '100%', overflow: 'hidden', mb: 3 }}>
-          <TableContainer sx={{ maxHeight: '70vh' }}>
-            <Table stickyHeader aria-label="vmware hosts table">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Host Name</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>VM ID</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Resources</TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 'bold' }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {formattedHosts.map((host) => {
-                  // Determine status color
-                  const getStatusColor = () => {
-                    switch (host.powerState) {
-                      case 'POWERED_ON': return 'success';
-                      case 'POWERED_OFF': return 'error';
-                      default: return 'warning';
-                    }
-                  };
+        {viewMode === 'table' ? (
+          /* Table View */
+          <Paper sx={{ width: '100%', overflow: 'hidden', mb: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            <TableContainer sx={{ maxHeight: '70vh' }}>
+              <Table stickyHeader aria-label="vmware hosts table">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'primary.main' }}>
+                    <TableCell sx={{ fontWeight: 600, color: 'white' }}>Host Name</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'white' }}>VM ID</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'white' }}>Status</TableCell>
+                    <TableCell sx={{ fontWeight: 600, color: 'white' }}>Resources</TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 600, color: 'white' }}>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {formattedHosts.map((host, index) => {
+                    // Determine status color
+                    const getStatusColor = () => {
+                      switch (host.powerState) {
+                        case 'POWERED_ON': return 'success';
+                        case 'POWERED_OFF': return 'error';
+                        default: return 'warning';
+                      }
+                    };
 
-                  return (
-                    <TableRow 
-                      key={host.vm || uuid()}
-                      hover
-                      sx={{ 
-                        '&:last-child td, &:last-child th': { border: 0 },
-                        borderLeft: `4px solid ${host.powerState === 'POWERED_ON' ? '#4caf50' : '#f44336'}`
-                      }}
-                    >
-                      <TableCell component="th" scope="row">
-                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                          {host.host}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {host.vm}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={host.powerState.replace('POWERED_', '')} 
-                          color={getStatusColor()}
-                          size="small"
-                          variant="filled"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                          <Chip 
-                            icon={<MemoryIcon fontSize="small" />}
-                            label={`${host.cpus} CPU`} 
+                    return (
+                      <TableRow
+                        key={host.vm || uuid()}
+                        hover
+                        sx={{
+                          '&:last-child td, &:last-child th': { border: 0 },
+                          borderLeft: `4px solid ${host.powerState === 'POWERED_ON' ? '#4caf50' : '#f44336'}`,
+                          bgcolor: index % 2 === 0 ? 'background.paper' : 'action.selected'
+                        }}
+                      >
+                        <TableCell component="th" scope="row">
+                          <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                            {host.host}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                            {host.vm}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={host.powerState.replace('POWERED_', '')}
+                            color={getStatusColor()}
                             size="small"
-                            variant="outlined"
-                            color="info"
+                            variant="filled"
                           />
-                          <Chip 
-                            icon={<StorageIcon fontSize="small" />}
-                            label={formatMemory(host.memoryMB)} 
-                            size="small"
-                            variant="outlined"
-                            color="info"
-                          />
-                        </Box>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
-                          <Button
-                            variant="outlined"
-                            color="error"
-                            size="small"
-                            startIcon={<StopIcon />}
-                            disabled={host.powerState === 'POWERED_OFF'}
-                            onClick={() => promptPowerAction('powerOff', host)}
-                          >
-                            Power Off
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            color="success"
-                            size="small"
-                            startIcon={<PlayArrowIcon />}
-                            disabled={host.powerState === 'POWERED_ON'}
-                            onClick={() => promptPowerAction('powerOn', host)}
-                          >
-                            Power On
-                          </Button>
-                        </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            <Chip
+                              icon={<MemoryIcon fontSize="small" />}
+                              label={`${host.cpus} CPU`}
+                              size="small"
+                              variant="outlined"
+                              color="info"
+                            />
+                            <Chip
+                              icon={<StorageIcon fontSize="small" />}
+                              label={formatMemory(host.memoryMB)}
+                              size="small"
+                              variant="outlined"
+                              color="info"
+                            />
+                          </Box>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              size="small"
+                              startIcon={<StopIcon />}
+                              disabled={host.powerState === 'POWERED_OFF'}
+                              onClick={() => promptPowerAction('powerOff', host)}
+                            >
+                              Power Off
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="success"
+                              size="small"
+                              startIcon={<PlayArrowIcon />}
+                              disabled={host.powerState === 'POWERED_ON'}
+                              onClick={() => promptPowerAction('powerOn', host)}
+                            >
+                              Power On
+                            </Button>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {formattedHosts.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} align="center">
+                        <Typography color="text.secondary">No hosts match your search criteria</Typography>
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-                {formattedHosts.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      <Typography color="text.secondary">No hosts match your search criteria</Typography>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        ) : (
+          /* Card View */
+          <Grid container spacing={3}>
+            {formattedHosts.map((host) => {
+              const isPoweredOn = host.powerState === 'POWERED_ON';
+              const statusColor = isPoweredOn ? '#4caf50' : '#f44336';
+
+              return (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={host.vm || uuid()}>
+                  <Card
+                    sx={{
+                      height: '100%',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                      position: 'relative',
+                      boxShadow: '0 8px 24px rgba(102, 126, 234, 0.3)',
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: '4px',
+                        background: statusColor,
+                        opacity: 0.8
+                      },
+                      '&:hover': {
+                        transform: 'translateY(-8px) scale(1.02)',
+                        boxShadow: '0 16px 48px rgba(102, 126, 234, 0.4)',
+                        '&::before': {
+                          opacity: 1,
+                          height: '6px'
+                        }
+                      }
+                    }}
+                  >
+                    <CardContent sx={{ p: 3 }}>
+                      {/* Host Name Header */}
+                      <Box sx={{ mb: 2 }}>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 700,
+                            mb: 0.5,
+                            pb: 1,
+                            borderBottom: '2px solid rgba(255, 255, 255, 0.3)',
+                            wordBreak: 'break-word'
+                          }}
+                        >
+                          {host.host}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            opacity: 0.8,
+                            fontFamily: 'monospace',
+                            fontSize: '0.7rem'
+                          }}
+                        >
+                          VM ID: {host.vm}
+                        </Typography>
+                      </Box>
+
+                      {/* Status Badge */}
+                      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+                        <Chip
+                          icon={isPoweredOn ? <PlayArrowIcon /> : <StopIcon />}
+                          label={host.powerState.replace('POWERED_', '')}
+                          sx={{
+                            bgcolor: isPoweredOn ? 'rgba(76, 175, 80, 0.9)' : 'rgba(244, 67, 54, 0.9)',
+                            color: 'white',
+                            fontWeight: 700,
+                            fontSize: '0.9rem',
+                            px: 2,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                            '& .MuiChip-icon': {
+                              color: 'white'
+                            }
+                          }}
+                        />
+                      </Box>
+
+                      {/* Resources */}
+                      <Box sx={{ mb: 3 }}>
+                        <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.7rem', mb: 1, display: 'block' }}>
+                          Resources
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          <Chip
+                            icon={<MemoryIcon />}
+                            label={`${host.cpus} CPU`}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(255, 255, 255, 0.2)',
+                              color: 'white',
+                              fontWeight: 600,
+                              '& .MuiChip-icon': {
+                                color: 'white'
+                              }
+                            }}
+                          />
+                          <Chip
+                            icon={<StorageIcon />}
+                            label={formatMemory(host.memoryMB)}
+                            size="small"
+                            sx={{
+                              bgcolor: 'rgba(255, 255, 255, 0.2)',
+                              color: 'white',
+                              fontWeight: 600,
+                              '& .MuiChip-icon': {
+                                color: 'white'
+                              }
+                            }}
+                          />
+                        </Box>
+                      </Box>
+
+                      {/* Action Buttons */}
+                      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between' }}>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          size="small"
+                          fullWidth
+                          startIcon={<StopIcon />}
+                          disabled={!isPoweredOn}
+                          onClick={() => promptPowerAction('powerOff', host)}
+                          sx={{
+                            fontWeight: 600,
+                            boxShadow: '0 4px 12px rgba(244, 67, 54, 0.3)',
+                            '&:hover': {
+                              boxShadow: '0 6px 16px rgba(244, 67, 54, 0.4)',
+                              transform: 'translateY(-2px)'
+                            },
+                            '&:disabled': {
+                              bgcolor: 'rgba(255, 255, 255, 0.1)',
+                              color: 'rgba(255, 255, 255, 0.3)'
+                            }
+                          }}
+                        >
+                          Off
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          fullWidth
+                          startIcon={<PlayArrowIcon />}
+                          disabled={isPoweredOn}
+                          onClick={() => promptPowerAction('powerOn', host)}
+                          sx={{
+                            fontWeight: 600,
+                            boxShadow: '0 4px 12px rgba(76, 175, 80, 0.3)',
+                            '&:hover': {
+                              boxShadow: '0 6px 16px rgba(76, 175, 80, 0.4)',
+                              transform: 'translateY(-2px)'
+                            },
+                            '&:disabled': {
+                              bgcolor: 'rgba(255, 255, 255, 0.1)',
+                              color: 'rgba(255, 255, 255, 0.3)'
+                            }
+                          }}
+                        >
+                          On
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+            {formattedHosts.length === 0 && (
+              <Grid item xs={12}>
+                <Paper sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography color="text.secondary">No hosts match your search criteria</Typography>
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
+        )}
 
         {/* Power action confirmation dialog */}
         <Dialog

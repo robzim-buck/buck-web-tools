@@ -27,17 +27,33 @@ export default function HammerSpaceSystemInfo(props) {
           {
             queryKey: ["hammerspaceSystemInfo"],
             queryFn: async () => {
-                const response = await fetch("https://laxcoresrv.buck.local:8000/hammerspace?item=system-info", {
-                    method: "GET",
-                    headers: {
-                        "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo",
-                        "Content-type": "application/json"
+                // Create AbortController for timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+                try {
+                    const response = await fetch("https://laxcoresrv.buck.local:8000/hammerspace?item=system-info", {
+                        method: "GET",
+                        headers: {
+                            "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo",
+                            "Content-type": "application/json"
+                        },
+                        signal: controller.signal
+                    });
+
+                    clearTimeout(timeoutId);
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch system info: ${response.statusText}`);
                     }
-                });
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch system info: ${response.statusText}`);
+                    return response.json();
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        throw new Error('Request timed out after 30 seconds');
+                    }
+                    throw error;
                 }
-                return response.json();
             },
             staleTime: 10 * 60 * 1000, // 10 minutes for system info
             refetchOnWindowFocus: false,

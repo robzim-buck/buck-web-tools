@@ -1,7 +1,9 @@
-import { Alert, AlertTitle, Divider, IconButton, Chip, Grid, Snackbar } from '@mui/material';
+import { Alert, AlertTitle, Divider, IconButton, Chip, Grid, Snackbar, Container, Paper, InputAdornment, TextField } from '@mui/material';
 import { useState, useMemo } from 'react';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckIcon from '@mui/icons-material/Check';
+import AssignmentReturnIcon from '@mui/icons-material/AssignmentReturn';
+import SearchIcon from '@mui/icons-material/Search';
 import { useProtectedApiGet } from '../hooks/useApi';
 
 import Button from '@mui/material/Button'
@@ -149,8 +151,25 @@ export default function ReturnSelfServeLicenses(props) {
       oktaStagedUsersQuery.isLoading, oktaStagedUsersQuery.error, oktaStagedUsersQuery.data,
       oktaProvisionedUsersQuery.isLoading, oktaProvisionedUsersQuery.error, oktaProvisionedUsersQuery.data
   ]);
-  if (oktausers.isLoading) return <CircularProgress></CircularProgress>;
-      if (oktausers.error) return "An error has occurred: " + oktausers.error.message;
+  if (oktausers.isLoading) {
+    return (
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+          <CircularProgress sx={{ color: '#667eea' }} size={60} />
+        </Box>
+      </Container>
+    );
+  }
+
+  if (oktausers.error) {
+    return (
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+        <Alert severity="error" sx={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%)', border: '1px solid #fca5a5' }}>
+          An error has occurred: {oktausers.error.message}
+        </Alert>
+      </Container>
+    );
+  }
       if (oktausers.data) {
 
     const clearFilter = () => {
@@ -165,145 +184,315 @@ export default function ReturnSelfServeLicenses(props) {
       }
       let myid = uuid()
         return (
-            <>
-            <Typography variant='h3'>{props.name} For {filteredData.length} Users</Typography>
+            <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
             <PreviewAlert ></PreviewAlert>
             <SuccessAlert ></SuccessAlert>
-            <p>
-              Type to filter the list: &nbsp; &nbsp;
-              <input id="filter"
-                name="filter"
-                type="text"
-                value={filter}
-                onChange={event => setFilter(event.target.value)}
-              /> &nbsp; &nbsp;
-            <Button onClick={clearFilter} size="small" variant="contained">Clear Filter</Button>
-            </p>
-            <Box sx={{ margin: 2 }}>
+
+            {/* Modern Header */}
+            <Paper
+              elevation={0}
+              sx={{
+                mb: 4,
+                p: 4,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                borderRadius: 3,
+                color: 'white'
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    p: 2,
+                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <AssignmentReturnIcon sx={{ fontSize: 40 }} />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h3" sx={{ fontWeight: 700, mb: 0.5 }}>
+                    {props.name}
+                  </Typography>
+                  <Typography variant="h6" sx={{ opacity: 0.9, fontWeight: 400 }}>
+                    For {filteredData.length} Users
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+
+            {/* Filter Section */}
+            <Paper elevation={0} sx={{ mb: 3, p: 3, border: '1px solid #e2e8f0', borderRadius: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <TextField
+                  id="filter"
+                  name="filter"
+                  placeholder="Type to filter users..."
+                  value={filter}
+                  onChange={event => setFilter(event.target.value)}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: '#667eea' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '&:hover fieldset': {
+                        borderColor: '#667eea',
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: '#764ba2',
+                      },
+                    },
+                  }}
+                />
+                <Button
+                  onClick={clearFilter}
+                  variant="contained"
+                  sx={{
+                    minWidth: '140px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                    }
+                  }}
+                >
+                  Clear Filter
+                </Button>
+              </Box>
+            </Paper>
+            <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2 }}>
                 {/* Header Row */}
-                <Grid container spacing={2} sx={{ mb: 2, p: 1, bgcolor: 'rgba(0, 0, 0, 0.04)', borderRadius: 1 }}>
+                <Grid container spacing={2} sx={{ mb: 2, p: 2, background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)', borderRadius: 2 }}>
                   <Grid size={3}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
                       Name
                     </Typography>
                   </Grid>
                   <Grid size={3}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
                       Email
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
                       Products to Return
                     </Typography>
                   </Grid>
                 </Grid>
                 
                 {filteredData.map((item) => {
-                    return <Grid container spacing={2} key={myid+item.profile.login} sx={{ alignItems: 'center', mb: 2, p: 1, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                    return <Grid container spacing={2} key={myid+item.profile.login} sx={{ alignItems: 'center', mb: 2, p: 2, bgcolor: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 2, transition: 'all 0.2s', '&:hover': { bgcolor: '#f5f5f5', boxShadow: '0 2px 8px rgba(102, 126, 234, 0.1)' } }}>
                       {/* Name Column */}
                       <Grid size={3}>
-                        <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#2d3748' }}>
                           {item.profile.displayName ? item.profile.displayName : ''}
                         </Typography>
                       </Grid>
-                      
+
                       {/* Email Column */}
                       <Grid size={3}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" sx={{ color: '#718096' }}>
                           {item.profile.login ? item.profile.login : ''}
                         </Typography>
                       </Grid>
-                      
+
                       {/* Products Column */}
                       <Grid size={6}>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          <Chip 
-                            label="Adobe" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Adobe')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Adobe"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Adobe')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="Acrobat" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Acrobat')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Acrobat"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Acrobat')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="Aquarium" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Aquarium')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Aquarium"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Aquarium')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="Maya" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Maya')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Maya"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Maya')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="Substance" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Substance')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Substance"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Substance')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="Parsec" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Parsec')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Parsec"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Parsec')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="Office" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'MSO365')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Office"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'MSO365')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="Figma" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Figma')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Figma"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Figma')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="Figjam" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Figjam')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="Figjam"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Figjam')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
-                          <Chip 
-                            label="FigmaFigjam" 
-                            onClick={(e) => {releaseLicense(e, item.profile.login, 'FigmaFigjam')}} 
-                            clickable 
-                            color="primary" 
+                          <Chip
+                            label="FigmaFigjam"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'FigmaFigjam')}}
+                            clickable
                             size="small"
-                            sx={{ fontSize: '0.75rem' }}
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
                           />
                         </Box>
                       </Grid>
                     </Grid>
                 })}
-                </Box>
-            </>
+            </Paper>
+            </Container>
             )
             }
     }

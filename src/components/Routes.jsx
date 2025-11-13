@@ -33,6 +33,8 @@ const VMWareHosts = lazy(() => import('./VMWareHosts'));
 const ZenDeskTickets = lazy(() => import('./ZenDeskTickets'));
 const JAMFMachineInfo = lazy(() => import('./JAMFMachineInfo'));
 const HammerspaceShares = lazy(() => import('./HammerspaceShares'));
+const HammerSpaceNodes = lazy(() => import('./HammerSpaceNodes'));
+const HammerSpaceGateways = lazy(() => import('./HammerSpaceGateways'));
 const HammerspaceObjectives = lazy(() => import('./HammerspaceObjectives'));
 const HammerspaceSites = lazy(() => import('./HammerspaceSites'));
 const HammerSpaceTasks = lazy(() => import('./HammerSpaceTasks'));
@@ -58,10 +60,9 @@ const GoogleUsers = lazy(() => import('./GoogleUsers'));
 const GoogleCalendars = lazy(() => import('./GoogleCalendars'));
 const ZoomUsers = lazy(() => import('./ZoomUsers'));
 const DocusignUsers = lazy(() => import('./DocusignUsers'));
+const SlackUsers = lazy(() => import('./SlackUsers'));
 const OktaLocations = lazy(() => import('./OktaLocations'));
 const OnboardNewUser = lazy(() => import('./OnboardNewUser'));
-const Rapid7Jobs = lazy(() => import('./Rapid7Jobs'));
-const Rapid7Investigations = lazy(() => import('./Rapid7Investigations'));
 const ZenDeskArchiveTickets = lazy(() => import('./ZenDeskArchiveTickets'));
 const Reboot = lazy(() => import('./Reboot'));
 const PTOCalendar = lazy(() => import('./PTOCalendar'));
@@ -69,12 +70,14 @@ const ProjectSizes = lazy(() => import('./ProjectSizes'));
 const WindowsCommand = lazy(() => import('./WindowsCommand'));
 const AWSCounts = lazy(() => import('./AWSCounts'));
 const AWSRestore = lazy(() => import('./AWSRestore'));
+const QueryS3 = lazy(() => import('./QueryS3'));
 const RenderManagement = lazy(() => import('./RenderManagement'));
 const AssignWorkstations = lazy(() => import('./AssignWorkstations'));
 const GlobalProjects = lazy(() => import('./GlobalProjects'));
 const ResidenceProjects = lazy(() => import('./ResidenceProjects'));
 const GlobalCapabilities = lazy(() => import('./GlobalCapabilities'));
 const GiantAntProjects = lazy(() => import('./GiantAntProjects'));
+const QueryGemini = lazy(() => import('./QueryGemini'));
 
 
 const allowedEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co"
@@ -186,6 +189,18 @@ const AppRoutes = () => {
         }/>
       </Route>
 
+      <Route path="/hammerspacenodes" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><HammerSpaceNodes /></Suspense>
+        }/>
+      </Route>
+
+      <Route path="/hammerspacegateways" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><HammerSpaceGateways /></Suspense>
+        }/>
+      </Route>
+
       <Route path="/hammerspaceobjectives" element={<RequiredAuth/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}><HammerspaceObjectives /></Suspense>
@@ -254,6 +269,12 @@ const AppRoutes = () => {
         }/>
       </Route>
 
+      <Route path="/querys3" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}><QueryS3 /></Suspense>
+        }/>
+      </Route>
+
       <Route path="/googlecalendars" element={<RequiredAuth/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}><GoogleCalendars /></Suspense>
@@ -270,6 +291,14 @@ const AppRoutes = () => {
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
             <ZoomUsers name="Zoom Users"/>
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/slackusers" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <SlackUsers name="Slack Users"/>
           </Suspense>
         }/>
       </Route>
@@ -301,6 +330,21 @@ const AppRoutes = () => {
         }/>
       </Route>
 
+      <Route path="/welcomenewresident" element={<RequiredAuth allowedEmail={ITEmails}/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <SlackUsers name="Welcome New Resident" />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/querygemini" element={<RequiredAuth allowedEmail={ITEmails}/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <QueryGemini />
+          </Suspense>
+        }/>
+      </Route>
 
       <Route path="/oktalocations" element={<RequiredAuth allowedEmail={allowedEmails}/>}>
         <Route path="" element={
@@ -392,21 +436,6 @@ const AppRoutes = () => {
         }/>
       </Route>
 
-      <Route path="/rapid7jobs" element={<RequiredAuth/>}>
-        <Route path="" element={
-          <Suspense fallback={<LoadingFallback />}>
-            <Rapid7Jobs />
-          </Suspense>
-        }/>
-      </Route>
-
-      <Route path="/rapid7investigations" element={<RequiredAuth/>}>
-        <Route path="" element={
-          <Suspense fallback={<LoadingFallback />}>
-            <Rapid7Investigations />
-          </Suspense>
-        }/>
-      </Route>
 
       <Route path="/zendeskarchivetickets" element={<RequiredAuth/>}>
         <Route path="" element={

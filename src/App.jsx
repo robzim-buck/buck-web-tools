@@ -10,7 +10,7 @@
  * See the License for the specific language governing permissions and limitations under the License.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import { useNavigate } from 'react-router-dom';
 import { OktaAuth, toRelativeUrl } from '@okta/okta-auth-js';
@@ -22,6 +22,7 @@ import config from './config';
 import Navbar from './Navbar';
 import AppRoutes from './components/Routes';
 import { AppDataProvider } from './contexts/AppDataProvider';
+import DataLoadingStatus from './components/DataLoadingStatus';
 
 const oktaAuth = new OktaAuth(config.oidc);
 
@@ -31,12 +32,19 @@ const App = () => {
     navigate(toRelativeUrl(originalUri || '/', window.location.origin));
   };
 
+  // Manage sidebar width state
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = localStorage.getItem('navbarWidth');
+    return saved ? parseInt(saved, 10) : 240;
+  });
+
   return (
     <Security oktaAuth={oktaAuth} restoreOriginalUri={restoreOriginalUri}>
       <AppDataProvider>
+        <DataLoadingStatus />
         <Box sx={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
           <Box sx={{
-            width: '240px',
+            width: `${sidebarWidth}px`,
             flexShrink: 0,
             borderRight: '1px solid rgba(0, 0, 0, 0.12)',
             height: '100vh',
@@ -44,20 +52,22 @@ const App = () => {
             left: 0,
             top: 0,
             zIndex: 100,
-            backgroundColor: 'white'
+            backgroundColor: 'white',
+            transition: 'width 0.1s ease'
           }}>
             <Box sx={{ height: '100vh', overflowY: 'auto' }}>
-              <Navbar />
+              <Navbar sidebarWidth={sidebarWidth} setSidebarWidth={setSidebarWidth} />
             </Box>
           </Box>
 
           <Box sx={{
-            marginLeft: '240px',
+            marginLeft: `${sidebarWidth}px`,
             flexGrow: 1,
             p: 3,
             height: '100vh',
             overflowY: 'auto',
-            backgroundColor: 'white'
+            backgroundColor: 'white',
+            transition: 'margin-left 0.1s ease'
           }}>
             <AppRoutes />
           </Box>

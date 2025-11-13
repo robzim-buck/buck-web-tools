@@ -39,7 +39,7 @@ export default function HammerSpaceSystemHealth() {
             queryFn: async () => {
                 const response = await fetch("https://laxcoresrv.buck.local:8000/hammerspace?item=/system/health", {
                     method: "GET",
-                    
+                    mode: "cors",
                     headers: {
                         "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo",
                         "Content-type": "application/json"
@@ -48,11 +48,25 @@ export default function HammerSpaceSystemHealth() {
                 if (!response.ok) {
                     throw new Error(`Failed to fetch system health: ${response.statusText}`);
                 }
-                return response.json();
+                const data = await response.json();
+
+                // If data is an array of strings (field names), convert to objects
+                if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'string') {
+                    // Remove duplicates and convert to objects
+                    const uniqueFields = [...new Set(data)];
+                    return uniqueFields.map(fieldName => ({
+                        name: fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
+                        status: 'Info',
+                        value: null,
+                        rawFieldName: fieldName
+                    }));
+                }
+
+                return data;
             },
-            staleTime: 2 * 60 * 1000, // 2 minutes for health data
-            refetchOnWindowFocus: true,
-            retry: 3
+            staleTime: 5 * 60 * 1000, // 5 minutes
+            refetchOnWindowFocus: false,
+            retry: 2
         },
         ]
     });
@@ -184,17 +198,31 @@ export default function HammerSpaceSystemHealth() {
     // Process health data into displayable format
     const processHealthData = (data) => {
         if (Array.isArray(data)) {
-            return data.map((item, index) => ({
-                id: item.id || `item_${index}`,
-                name: item.name || item.component || `Health Check ${index + 1}`,
-                ...item
-            }));
-        } else if (typeof data === 'object') {
+            return data.map((item, index) => {
+                // If item is already an object with proper structure, return it
+                if (typeof item === 'object' && item !== null && item.name) {
+                    return {
+                        id: item.id || `item_${index}`,
+                        ...item
+                    };
+                }
+                // Otherwise, create a new object
+                return {
+                    id: item.id || `item_${index}`,
+                    name: item.name || item.component || `Health Check ${index + 1}`,
+                    status: item.status,
+                    value: item.value,
+                    rawFieldName: item.rawFieldName,
+                    // Only spread if it's a proper object, not a string or primitive
+                    ...(typeof item === 'object' && item !== null && !Array.isArray(item) ? item : {})
+                };
+            });
+        } else if (typeof data === 'object' && data !== null) {
             return Object.entries(data).map(([key, value], index) => ({
                 id: `${key}_${index}`,
                 name: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
-                value: value,
-                ...value
+                value: typeof value === 'object' ? value : { data: value },
+                rawData: value
             }));
         }
         return [];

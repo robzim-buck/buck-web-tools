@@ -4,15 +4,18 @@ import {
   Typography, Box, Container, Grid,
   Card, CardContent, Chip, Divider,
   Accordion, AccordionSummary, AccordionDetails,
-  Button, LinearProgress
+  Button, LinearProgress, ToggleButtonGroup, ToggleButton,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { ViewList as ViewListIcon, TableView as TableViewIcon } from '@mui/icons-material';
 import CircularProgress from '@mui/material/CircularProgress';
 import uuid from 'react-uuid';
 
 export default function JAMFMachineInfo(props) {
   const [expanded, setExpanded] = useState({});
-  
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
+
   // Toggle expansion state for a specific machine
   const handleToggle = (machineId) => {
     setExpanded(prev => ({
@@ -73,19 +76,123 @@ export default function JAMFMachineInfo(props) {
     };
 
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Typography variant='h4' color="primary" fontWeight="medium">
             {props.name || 'JAMF Machine Information'}
           </Typography>
-          <Chip 
-            label={`${sortedData.length} Machines`} 
-            color="primary" 
-            variant="outlined" 
-            sx={{ fontWeight: 'bold' }}
-          />
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Chip
+              label={`${sortedData.length} Machines`}
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 'bold' }}
+            />
+
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => newMode && setViewMode(newMode)}
+              size="small"
+            >
+              <ToggleButton value="card" aria-label="card view">
+                <ViewListIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Card
+              </ToggleButton>
+              <ToggleButton value="table" aria-label="table view">
+                <TableViewIcon fontSize="small" sx={{ mr: 0.5 }} />
+                Table
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
         </Box>
 
+        {viewMode === 'table' ? (
+          /* Table View */
+          <TableContainer component={Paper} sx={{ boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            <Table>
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'primary.main' }}>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Machine Name</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Make/Model</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>OS</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>User</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>IP Address</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Serial</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Disk Space</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sortedData.map((machine, index) => {
+                  const diskSpacePercentage = (machine.storage.bootDriveAvailableSpaceMegabytes / machine.storage.bootDriveSizeMegabytes * 100) || 0;
+                  const statusColor = getMachineStatusColor(machine);
+
+                  return (
+                    <TableRow
+                      key={machine._id || index}
+                      sx={{
+                        '&:hover': { bgcolor: 'action.hover' },
+                        bgcolor: index % 2 === 0 ? 'background.paper' : 'action.selected',
+                        borderLeft: `4px solid ${statusColor}`
+                      }}
+                    >
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="medium">
+                          {machine.general.name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {machine.hardware.make} {machine.hardware.model}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box>
+                          <Typography variant="body2">
+                            {machine.operatingSystem.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            v{machine.operatingSystem.version}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {machine.userAndLocation.username || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                          {machine.general.lastIpAddress || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                          {machine.hardware.serialNumber || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ minWidth: 150 }}>
+                          <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+                            {formatBytes(machine.storage.bootDriveAvailableSpaceMegabytes)} / {formatBytes(machine.storage.bootDriveSizeMegabytes)}
+                          </Typography>
+                          <LinearProgress
+                            variant="determinate"
+                            value={diskSpacePercentage}
+                            color={diskSpacePercentage < 10 ? "error" : diskSpacePercentage < 25 ? "warning" : "success"}
+                            sx={{ height: 6, borderRadius: 5 }}
+                          />
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        ) : (
+          /* Card View */
         <Grid container spacing={3}>
           {sortedData.map((machine) => {
             const machineId = machine._id || uuid();
@@ -105,15 +212,33 @@ export default function JAMFMachineInfo(props) {
             
             return (
               <Grid item xs={12} key={machineId}>
-                <Card 
-                  variant="outlined" 
-                  sx={{ 
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-                    transition: 'all 0.2s ease-in-out',
-                    borderLeft: `4px solid ${statusColor}`,
+                <Card
+                  variant="outlined"
+                  sx={{
+                    background: `linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(250,250,255,0.98) 100%)`,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    borderLeft: `6px solid ${statusColor}`,
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: '3px',
+                      background: `linear-gradient(90deg, ${statusColor} 0%, transparent 100%)`,
+                      opacity: 0.6
+                    },
                     '&:hover': {
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
-                      transform: 'translateY(-2px)'
+                      boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
+                      transform: 'translateY(-4px) scale(1.01)',
+                      borderLeftColor: statusColor,
+                      '&::before': {
+                        opacity: 1
+                      }
                     }
                   }}
                 >
@@ -123,24 +248,38 @@ export default function JAMFMachineInfo(props) {
                       onChange={() => handleToggle(machineId)}
                       sx={{ boxShadow: 'none' }}
                     >
-                      <AccordionSummary 
+                      <AccordionSummary
                         expandIcon={
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Button 
-                              size="small" 
-                              variant="text" 
+                            <Button
+                              size="small"
+                              variant="contained"
                               endIcon={<ExpandMoreIcon />}
-                              sx={{ 
+                              sx={{
                                 ml: 1,
-                                minWidth: 100,
-                                transition: 'all 0.2s ease'
+                                minWidth: 120,
+                                transition: 'all 0.3s ease',
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                                '&:hover': {
+                                  background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                  boxShadow: '0 6px 16px rgba(102, 126, 234, 0.4)',
+                                  transform: 'translateY(-2px)'
+                                }
                               }}
                             >
                               {expanded[machineId] ? 'Hide Details' : 'Show Details'}
                             </Button>
                           </Box>
                         }
-                        sx={{ px: 3, py: 2 }}
+                        sx={{
+                          px: 3,
+                          py: 2,
+                          background: 'linear-gradient(90deg, rgba(102, 126, 234, 0.03) 0%, transparent 100%)',
+                          '&:hover': {
+                            background: 'linear-gradient(90deg, rgba(102, 126, 234, 0.06) 0%, transparent 100%)'
+                          }
+                        }}
                       >
                         <Grid container spacing={2} alignItems="center">
                           <Grid item xs={12} md={4}>
@@ -153,24 +292,42 @@ export default function JAMFMachineInfo(props) {
                           </Grid>
                           <Grid item xs={12} md={5}>
                             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                              <Chip 
-                                variant="outlined" 
-                                color={getOSVersionColor()} 
+                              <Chip
+                                variant="filled"
+                                color={getOSVersionColor()}
                                 size="small"
-                                label={`macOS ${machine.operatingSystem.name}`} 
+                                label={`macOS ${machine.operatingSystem.name}`}
+                                sx={{
+                                  fontWeight: 600,
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                  transition: 'all 0.2s ease',
+                                  '&:hover': {
+                                    transform: 'translateY(-2px)',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                                  }
+                                }}
                               />
-                              <Chip 
-                                variant="outlined" 
-                                color="info" 
+                              <Chip
+                                variant="outlined"
+                                color="info"
                                 size="small"
-                                label={`IP: ${machine.general.lastIpAddress || 'N/A'}`} 
+                                label={`IP: ${machine.general.lastIpAddress || 'N/A'}`}
+                                sx={{
+                                  fontWeight: 500,
+                                  borderWidth: 2,
+                                  fontFamily: 'monospace'
+                                }}
                               />
                               {machine.userAndLocation.username && (
-                                <Chip 
-                                  variant="outlined" 
-                                  color="secondary" 
+                                <Chip
+                                  variant="outlined"
+                                  color="secondary"
                                   size="small"
-                                  label={`User: ${machine.userAndLocation.username}`} 
+                                  label={`User: ${machine.userAndLocation.username}`}
+                                  sx={{
+                                    fontWeight: 500,
+                                    borderWidth: 2
+                                  }}
                                 />
                               )}
                             </Box>
@@ -324,6 +481,7 @@ export default function JAMFMachineInfo(props) {
             );
           })}
         </Grid>
+        )}
       </Container>
     );
   }

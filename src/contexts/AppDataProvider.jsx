@@ -122,6 +122,50 @@ export const AppDataProvider = ({ children }) => {
     queryConfig: commonQueryConfig
   });
 
+  // ========== ASSIGNMENTS (Workstation Assignments from SQL Database) ==========
+  // Using custom query with timeout to prevent hanging
+  const [assignmentsQuery] = useQueries({
+    queries: [
+      {
+        queryKey: ['/assignments/Assignments'],
+        queryFn: async () => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+          try {
+            const response = await fetch('https://laxcoresrv.buck.local:8000/assignments/Assignments', {
+              signal: controller.signal,
+              headers: {
+                'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+              }
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data;
+          } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+              console.error('Assignments query timed out after 10 seconds');
+              throw new Error('Request timeout - assignments endpoint not responding');
+            }
+            console.error('Error fetching assignments:', error);
+            throw error;
+          }
+        },
+        staleTime: 30 * 1000, // 30 seconds - assignments change frequently
+        refetchOnWindowFocus: false,
+        retry: 2,
+        retryDelay: 1000,
+      }
+    ]
+  });
+
   // ========== COMPOSITE MACHINE INFO DATA SOURCES ==========
   // These are needed for CompositeMachineInfo component
 
@@ -190,6 +234,51 @@ export const AppDataProvider = ({ children }) => {
   // ========== ADOBE GROUPS ========== (NOT PRE-FETCHED)
   // Adobe data is not pre-fetched - components should fetch directly
 
+  // ========== SLACK USERS ==========
+  const [slackUsersQuery] = useQueries({
+    queries: [
+      {
+        queryKey: ['slackUsers'],
+        queryFn: async () => {
+          let allUsers = [];
+          let currentPage = 1;
+          let hasMore = true;
+          const pageSize = 500;
+
+          while (hasMore) {
+            const response = await fetch(
+              `https://laxcoresrv.buck.local:8000/slack_users?page=${currentPage}&size=${pageSize}`
+            );
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const pageData = await response.json();
+
+            // Add items from this page to our collection
+            if (pageData.items && pageData.items.length > 0) {
+              allUsers = [...allUsers, ...pageData.items];
+            }
+
+            // Check if there are more pages
+            hasMore = pageData.items && pageData.items.length === pageSize;
+            currentPage++;
+
+            // Safety check to prevent infinite loops
+            if (currentPage > 100) {
+              console.warn('Reached maximum page limit (100 pages)');
+              break;
+            }
+          }
+
+          return { items: allUsers, total: allUsers.length };
+        },
+        ...commonQueryConfig
+      }
+    ]
+  });
+
   // ========== GOOGLE USERS (COMBINED) ==========
   // Combine Google staff and freelance users into a single dataset
   const googleUsers = React.useMemo(() => {
@@ -238,10 +327,12 @@ export const AppDataProvider = ({ children }) => {
                     oktaUsersQuery.isLoading ||
                     ldapRawMachineInfoQuery.isLoading ||
                     ldapBasicMachineInfoQuery.isLoading ||
+                    assignmentsQuery.isLoading ||
                     parsecReportQuery.isLoading ||
                     ldapMachineInfoQuery.isLoading ||
                     saltMachineInfoQuery.isLoading ||
-                    saltPingInfoQuery.isLoading;
+                    saltPingInfoQuery.isLoading ||
+                    slackUsersQuery.isLoading;
 
   // Context value - provide all data and loading states
   const contextValue = {
@@ -255,10 +346,12 @@ export const AppDataProvider = ({ children }) => {
       oktaUsers: oktaUsersQuery,
       ldapRawMachineInfo: ldapRawMachineInfoQuery,
       ldapBasicMachineInfo: ldapBasicMachineInfoQuery,
+      assignments: assignmentsQuery,
       parsecReport: parsecReportQuery,
       ldapMachineInfo: ldapMachineInfoQuery,
       saltMachineInfo: saltMachineInfoQuery,
       saltPingInfo: saltPingInfoQuery,
+      slackUsers: slackUsersQuery,
     },
 
     // Processed data
@@ -271,10 +364,12 @@ export const AppDataProvider = ({ children }) => {
       oktaUsers: oktaUsersQuery.data,
       ldapRawMachineInfo: ldapRawMachineInfoQuery.data,
       ldapBasicMachineInfo: ldapBasicMachineInfoQuery.data,
+      assignments: assignmentsQuery.data,
       parsecReport: parsecReportQuery.data,
       ldapMachineInfo: ldapMachineInfoQuery.data,
       saltMachineInfo: saltMachineInfoQuery.data,
       saltPingInfo: saltPingInfoQuery.data,
+      slackUsers: slackUsersQuery.data,
     },
 
     // Loading states
@@ -290,10 +385,12 @@ export const AppDataProvider = ({ children }) => {
         'oktaUsers': oktaUsersQuery.isLoading,
         'ldapRawMachineInfo': ldapRawMachineInfoQuery.isLoading,
         'ldapBasicMachineInfo': ldapBasicMachineInfoQuery.isLoading,
+        'assignments': assignmentsQuery.isLoading,
         'parsecReport': parsecReportQuery.isLoading,
         'ldapMachineInfo': ldapMachineInfoQuery.isLoading,
         'saltMachineInfo': saltMachineInfoQuery.isLoading,
         'saltPingInfo': saltPingInfoQuery.isLoading,
+        'slackUsers': slackUsersQuery.isLoading,
       };
       return queryMap[dataKey] || false;
     }
