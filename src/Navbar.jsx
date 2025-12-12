@@ -560,9 +560,9 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                   <ListItemText primary="JAMF Machine Info" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 {hasAccess(ITEmails) && (
-                  <ListItemButton component={Link} to="/rendermanagement" id="render-management-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemButton component={Link} to="/ec2-instance-management" id="ec2-instance-management-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                     <ListItemIcon><CloudQueueIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Render Management" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    <ListItemText primary="EC2 Instance Management" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                   </ListItemButton>
                 )}
                 {/* {hasAccess(ITEmails) && (

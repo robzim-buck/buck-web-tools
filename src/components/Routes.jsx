@@ -75,7 +75,7 @@ const WindowsCommand = lazy(() => import('./WindowsCommand'));
 const AWSCounts = lazy(() => import('./AWSCounts'));
 const AWSRestore = lazy(() => import('./AWSRestore'));
 const QueryS3 = lazy(() => import('./QueryS3'));
-const RenderManagement = lazy(() => import('./RenderManagement'));
+const EC2InstanceManagement = lazy(() => import('./EC2InstanceManagement'));
 const AssignWorkstations = lazy(() => import('./AssignWorkstations'));
 const GlobalProjects = lazy(() => import('./GlobalProjects'));
 const ResidenceProjects = lazy(() => import('./ResidenceProjects'));
@@ -525,10 +525,10 @@ const AppRoutes = () => {
         }/>
       </Route>
 
-      <Route path="/rendermanagement" element={<RequiredAuth allowedEmail={ITEmails}/>}>
+      <Route path="/ec2-instance-management" element={<RequiredAuth allowedEmail={ITEmails}/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
-            <RenderManagement />
+            <EC2InstanceManagement />
           </Suspense>
         }/>
       </Route>
