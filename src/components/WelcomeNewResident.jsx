@@ -3,7 +3,7 @@ import {
   Typography, Container, Paper, Box, CircularProgress, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Avatar, Button, TextField, InputAdornment, Snackbar, Chip, TableSortLabel,
-  IconButton, Collapse
+  IconButton, Collapse, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import SendIcon from '@mui/icons-material/Send';
@@ -12,7 +12,7 @@ import CodeIcon from '@mui/icons-material/Code';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAppData } from '../contexts/AppDataProvider';
 
-export default function SlackUsers(props) {
+export default function WelcomeNewResident(props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [showDeleted, setShowDeleted] = useState(false);
@@ -25,6 +25,7 @@ export default function SlackUsers(props) {
   const [orderBy, setOrderBy] = useState('real_name');
   const [customMessages, setCustomMessages] = useState({});
   const [expandedUsers, setExpandedUsers] = useState({});
+  const [selectedDepartment, setSelectedDepartment] = useState('');
 
   // Try to get data from context first
   let contextData = null;
@@ -76,17 +77,13 @@ export default function SlackUsers(props) {
 
         const pageData = await response.json();
 
-        // Add items from this page to our collection
         if (pageData.items && pageData.items.length > 0) {
           allUsers = [...allUsers, ...pageData.items];
         }
 
-        // Check if there are more pages
-        // Typically paginated APIs have fields like 'total', 'page', 'pages', or 'hasMore'
         hasMore = pageData.items && pageData.items.length === pageSize;
         currentPage++;
 
-        // Safety check to prevent infinite loops
         if (currentPage > 100) {
           console.warn('Reached maximum page limit (100 pages)');
           break;
@@ -101,37 +98,85 @@ export default function SlackUsers(props) {
     enabled: shouldFetch
   });
 
-  // Use context data if available, otherwise use fetched data
-  const slackUsersData = contextData || fetchedData;
-  const isLoading = contextLoading || isFetching;
-  const error = contextError || fetchError;
-
-  // Mutation for sending welcome message
-  const sendWelcomeMutation = useMutation({
-    mutationFn: async (userId) => {
+  // Fetch Okta users to get departments
+  const {
+    data: oktaUsersData = [],
+    isLoading: isLoadingOktaUsers
+  } = useQuery({
+    queryKey: ['oktaUsersForDepartments'],
+    queryFn: async () => {
       const response = await fetch(
-        `https://laxcoresrv.buck.local:8000/coda_post_slack_welcome_message/${userId}`,
+        'https://laxcoresrv.buck.local:8000/buckokta/category/att/comparison/match?_category=users&_att=status&_comparison=eq&_match=ACTIVE',
         {
-          method: 'POST',
-          mode: 'cors',
           headers: {
+            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo',
             'Content-type': 'application/json'
           }
         }
       );
       if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 2
+  });
+
+  // Extract unique departments from Okta users
+  const departments = useMemo(() => {
+    if (!oktaUsersData || !Array.isArray(oktaUsersData)) return [];
+
+    const departmentSet = new Set();
+    oktaUsersData.forEach(user => {
+      if (user?.profile?.department) {
+        departmentSet.add(user.profile.department);
+      }
+    });
+
+    return Array.from(departmentSet).sort();
+  }, [oktaUsersData]);
+
+  // Use context data if available, otherwise use fetched data
+  const slackUsersData = contextData || fetchedData;
+  const isLoading = contextLoading || isFetching || isLoadingOktaUsers;
+  const error = contextError || fetchError;
+
+  // Mutation for sending welcome message (with optional department)
+  const sendWelcomeMutation = useMutation({
+    mutationFn: async ({ userId, department }) => {
+      // Build the URL based on whether a department is selected
+      let url;
+      if (department) {
+        // Use the department endpoint with buck_department query param
+        url = `https://laxcoresrv.buck.local:8000/coda_post_slack_welcome_message_for_buck_department/${userId}/${encodeURIComponent(department)}?buck_department=${encodeURIComponent(department)}`;
+      } else {
+        // Use the department endpoint without the department param (empty department in path)
+        url = `https://laxcoresrv.buck.local:8000/coda_post_slack_welcome_message_for_buck_department/${userId}/`;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        headers: {
+          'Content-type': 'application/json'
+        }
+      });
+      if (!response.ok) {
         throw new Error(`Failed to send welcome message: ${response.statusText}`);
       }
       return response.json();
     },
-    onSuccess: (data, userId) => {
+    onSuccess: (data, variables) => {
+      const departmentInfo = variables.department ? ` (Department: ${variables.department})` : '';
       setSnackbar({
         open: true,
-        message: `Welcome message sent successfully to user ${userId}`,
+        message: `Welcome message sent successfully to user ${variables.userId}${departmentInfo}`,
         severity: 'success'
       });
     },
-    onError: (error, userId) => {
+    onError: (error, variables) => {
       setSnackbar({
         open: true,
         message: `Failed to send welcome message: ${error.message}`,
@@ -164,7 +209,6 @@ export default function SlackUsers(props) {
         message: `Message sent successfully to user ${variables.userId}`,
         severity: 'success'
       });
-      // Clear the message for this user
       setCustomMessages(prev => ({
         ...prev,
         [variables.userId]: ''
@@ -180,7 +224,10 @@ export default function SlackUsers(props) {
   });
 
   const handleSendWelcome = (user) => {
-    sendWelcomeMutation.mutate(user.id);
+    sendWelcomeMutation.mutate({
+      userId: user.id,
+      department: selectedDepartment
+    });
   };
 
   const handleSendCustomMessage = (user) => {
@@ -201,6 +248,10 @@ export default function SlackUsers(props) {
       ...prev,
       [userId]: message
     }));
+  };
+
+  const handleDepartmentChange = (event) => {
+    setSelectedDepartment(event.target.value);
   };
 
   // Sorting handlers
@@ -259,7 +310,7 @@ export default function SlackUsers(props) {
   // Get user initials for avatar
   const getUserInitials = (user) => {
     const name = user.real_name || user.name || '';
-    if (!name) return 'SU'; // Slack User
+    if (!name) return 'SU';
 
     const parts = name.split(' ');
     if (parts.length >= 2) {
@@ -317,9 +368,45 @@ export default function SlackUsers(props) {
   if (isLoading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant='h4' color="primary" fontWeight="medium" gutterBottom>
-          {props.name || 'Slack Users'}
-        </Typography>
+        <Box
+          sx={{
+            backgroundImage: 'url(/residence-logo.png)',
+            backgroundSize: 'contain',
+            backgroundPosition: 'right center',
+            backgroundRepeat: 'no-repeat',
+            backgroundColor: '#1976d2',
+            borderRadius: 2,
+            p: 4,
+            mb: 3,
+            display: 'flex',
+            alignItems: 'center',
+            minHeight: 150,
+            width: '100%',
+          }}
+        >
+          <Box
+            component="img"
+            src="/resldence-logo-square.png"
+            alt="Residence Logo"
+            sx={{
+              width: 80,
+              height: 80,
+              mr: 3,
+              borderRadius: 1,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            }}
+          />
+          <Typography
+            variant='h4'
+            fontWeight="medium"
+            sx={{
+              color: 'white',
+              textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            {props.name || 'Welcome New Resident'}
+          </Typography>
+        </Box>
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
           <CircularProgress />
         </Box>
@@ -331,9 +418,45 @@ export default function SlackUsers(props) {
   if (error) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant='h4' color="primary" fontWeight="medium" gutterBottom>
-          {props.name || 'Slack Users'}
-        </Typography>
+        <Box
+          sx={{
+            backgroundImage: 'url(/residence-logo.png)',
+            backgroundSize: 'contain',
+            backgroundPosition: 'right center',
+            backgroundRepeat: 'no-repeat',
+            backgroundColor: '#1976d2',
+            borderRadius: 2,
+            p: 4,
+            mb: 3,
+            display: 'flex',
+            alignItems: 'center',
+            minHeight: 150,
+            width: '100%',
+          }}
+        >
+          <Box
+            component="img"
+            src="/resldence-logo-square.png"
+            alt="Residence Logo"
+            sx={{
+              width: 80,
+              height: 80,
+              mr: 3,
+              borderRadius: 1,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            }}
+          />
+          <Typography
+            variant='h4'
+            fontWeight="medium"
+            sx={{
+              color: 'white',
+              textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            {props.name || 'Welcome New Resident'}
+          </Typography>
+        </Box>
         <Paper sx={{ p: 3, bgcolor: '#fff5f5' }}>
           <Typography color="error" variant="h6" gutterBottom>An error occurred</Typography>
           <Typography color="text.secondary">
@@ -349,9 +472,45 @@ export default function SlackUsers(props) {
   if (users.length === 0) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant='h4' color="primary" fontWeight="medium" gutterBottom>
-          {props.name || 'Slack Users'}
-        </Typography>
+        <Box
+          sx={{
+            backgroundImage: 'url(/residence-logo.png)',
+            backgroundSize: 'contain',
+            backgroundPosition: 'right center',
+            backgroundRepeat: 'no-repeat',
+            backgroundColor: '#1976d2',
+            borderRadius: 2,
+            p: 4,
+            mb: 3,
+            display: 'flex',
+            alignItems: 'center',
+            minHeight: 150,
+            width: '100%',
+          }}
+        >
+          <Box
+            component="img"
+            src="/resldence-logo-square.png"
+            alt="Residence Logo"
+            sx={{
+              width: 80,
+              height: 80,
+              mr: 3,
+              borderRadius: 1,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            }}
+          />
+          <Typography
+            variant='h4'
+            fontWeight="medium"
+            sx={{
+              color: 'white',
+              textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            {props.name || 'Welcome New Resident'}
+          </Typography>
+        </Box>
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>No Users Found</Typography>
           <Typography color="text.secondary">
@@ -365,9 +524,45 @@ export default function SlackUsers(props) {
   // Main UI
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Typography variant='h4' color="primary" fontWeight="medium" gutterBottom>
-        {props.name || 'Slack Users'}
-      </Typography>
+      <Box
+        sx={{
+          backgroundImage: 'url(/residence-logo.png)',
+          backgroundSize: 'contain',
+          backgroundPosition: 'right center',
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: '#1976d2',
+          borderRadius: 2,
+          p: 4,
+          mb: 3,
+          display: 'flex',
+          alignItems: 'center',
+          minHeight: 150,
+          width: '100%',
+        }}
+      >
+        <Box
+          component="img"
+          src="/resldence-logo-square.png"
+          alt="Residence Logo"
+          sx={{
+            width: 80,
+            height: 80,
+            mr: 3,
+            borderRadius: 1,
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          }}
+        />
+        <Typography
+          variant='h4'
+          fontWeight="medium"
+          sx={{
+            color: 'white',
+            textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          {props.name || 'Welcome New Resident'}
+        </Typography>
+      </Box>
 
       <Paper sx={{ p: 3, mb: 2 }}>
         <Typography variant="h6" gutterBottom>Summary</Typography>
@@ -445,11 +640,11 @@ export default function SlackUsers(props) {
       </Paper>
 
       <Paper sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField
             placeholder="Search by name..."
             size="small"
-            fullWidth
+            sx={{ flexGrow: 1, minWidth: 200 }}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             slotProps={{
@@ -462,6 +657,36 @@ export default function SlackUsers(props) {
               }
             }}
           />
+
+          <FormControl size="small" sx={{ minWidth: 250 }}>
+            <InputLabel id="department-select-label">Department (Optional)</InputLabel>
+            <Select
+              labelId="department-select-label"
+              id="department-select"
+              value={selectedDepartment}
+              label="Department (Optional)"
+              onChange={handleDepartmentChange}
+            >
+              <MenuItem value="">
+                <em>No Department (Default Message)</em>
+              </MenuItem>
+              {departments.map((dept) => (
+                <MenuItem key={dept} value={dept}>
+                  {dept}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {selectedDepartment && (
+            <Chip
+              label={`Department: ${selectedDepartment}`}
+              color="primary"
+              onDelete={() => setSelectedDepartment('')}
+              size="small"
+            />
+          )}
+
           {searchTerm && (
             <Button
               size="small"
@@ -469,12 +694,13 @@ export default function SlackUsers(props) {
               onClick={() => setSearchTerm('')}
               sx={{ whiteSpace: 'nowrap' }}
             >
-              Clear
+              Clear Search
             </Button>
           )}
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
           Showing {filteredAndSortedUsers.length} users
+          {selectedDepartment && ` | Welcome messages will include ${selectedDepartment} department info`}
         </Typography>
       </Paper>
 
@@ -551,7 +777,6 @@ export default function SlackUsers(props) {
           </TableHead>
           <TableBody>
             {filteredAndSortedUsers.map((user, index) => {
-              // Create a compound key to ensure uniqueness
               const uniqueKey = `${user.id || 'no-id'}-${user.name || 'no-name'}-${user.profile?.email || 'no-email'}-${index}`;
 
               return (
@@ -565,7 +790,6 @@ export default function SlackUsers(props) {
                 <TableCell>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     {(() => {
-                      // Try multiple possible image field names from Slack API
                       const imageUrl = user.profile?.image_72 ||
                                       user.profile?.image_48 ||
                                       user.profile?.image_192 ||
@@ -658,7 +882,7 @@ export default function SlackUsers(props) {
                       disabled={sendWelcomeMutation.isPending || !user.id}
                       sx={{ textTransform: 'none', minWidth: 150 }}
                     >
-                      Send Welcome
+                      {selectedDepartment ? `Welcome (${selectedDepartment})` : 'Send Welcome'}
                     </Button>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <TextField

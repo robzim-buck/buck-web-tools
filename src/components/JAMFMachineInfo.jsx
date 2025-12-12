@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppData } from '../contexts/AppDataProvider';
 import {
   Typography, Box, Container, Grid,
@@ -25,7 +25,13 @@ export default function JAMFMachineInfo(props) {
   };
 
   // Get data from context
-  const { data: appData, queries } = useAppData();
+  const { data: appData, queries, requestData } = useAppData();
+
+  // Request the data this component needs
+  useEffect(() => {
+    requestData('jamfMachineInfo');
+  }, [requestData]);
+
   const jamf_machine_info = queries.jamfMachineInfo;
 
   if (jamf_machine_info.isLoading) {

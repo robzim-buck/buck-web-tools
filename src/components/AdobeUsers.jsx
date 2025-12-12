@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Grid, Chip, Box, Divider, List, ListItem, ListItemText, Paper, Typography,
   Container, TextField, InputAdornment, Card, CardContent, Avatar,
@@ -40,7 +40,13 @@ export default function AdobeUsers() {
   });
 
   // Get Google users from context for cross-referencing
-  const { data: appData, isDataLoading } = useAppData();
+  const { data: appData, isDataLoading, requestData } = useAppData();
+
+  // Request the data this component needs
+  useEffect(() => {
+    requestData(['googleStaff', 'googleFreelance']);
+  }, [requestData]);
+
   const googleUsersByEmail = appData.googleUsersByEmail || {};
 
   // Helper function to get Google user for an Adobe user

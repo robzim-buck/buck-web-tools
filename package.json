@@ -20,6 +20,7 @@
     "@tanstack/react-query": "^5.75.2",
     "axios": "^1.9.0",
     "caniuse-lite": "^1.0.30001753",
+    "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
     "leaflet": "^1.9.4",
     "mui-datatables": "^4.3.0",
@@ -28,6 +29,7 @@
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.4.1",
     "react-uuid": "^2.0.0",
+    "recharts": "^3.5.1",
     "semantic-ui-css": "^2.5.0",
     "semantic-ui-react": "^2.1.5",
     "uuid": "^11.1.0"

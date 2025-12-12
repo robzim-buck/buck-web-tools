@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Typography, Container, Paper, Box, CircularProgress, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -19,7 +19,12 @@ export default function GoogleUsers(props) {
   console.log("GoogleUsers render - Auth state:", authState?.isAuthenticated);
 
   // Get Google users data from context
-  const { data, queries, isDataLoading } = useAppData();
+  const { data, queries, isDataLoading, requestData } = useAppData();
+
+  // Request the data this component needs
+  useEffect(() => {
+    requestData(['googleStaff', 'googleFreelance']);
+  }, [requestData]);
   const googleUsers = data.googleUsers || [];
   const isLoading = isDataLoading('googleUsers');
   const error = queries.googleStaff.error || queries.googleFreelance.error;

@@ -5,12 +5,21 @@ import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useOktaAuth } from '@okta/okta-react';
 
+const AWS_REGIONS = [
+  { value: 'us-east-1', label: 'US East (N. Virginia)' },
+  { value: 'us-west-1', label: 'US West (N. California)' },
+  { value: 'us-west-2', label: 'US West (Oregon)' },
+  // { value: 'eu-west-1', label: 'Europe (Ireland)' },
+  // { value: 'ap-southeast-2', label: 'Australia (Sydney)' },
+];
+
 export default function RenderManagement() {
   const { authState, oktaAuth } = useOktaAuth();
   const [instanceCount, setInstanceNum] = useState('1');
   const [name, setName] = useState('');
   const [size, setSize] = useState('');
   const [gpu, setGPU] = useState('');
+  const [awsRegion, setAwsRegion] = useState('us-east-1');
   const [createdBy, setCreatedBy] = useState('');
   
   // Validate size for current GPU selection
@@ -47,10 +56,9 @@ export default function RenderManagement() {
 
 
   const createInstancesMutation = useMutation({
-    mutationFn: async ({ name, instanceCount, size, gpu: gpu, createdBy }) => {
+    mutationFn: async ({ name, instanceCount, size, gpu: gpu, createdBy, region }) => {
       //aws/create_aws_ec2_instance/us-east-1/rztest/2/medium/false/rob.zimmelman%40buck.co
-      const availabilityZone = 'us-east-1';
-      const url = `https://laxcoresrv.buck.local:8000/aws/create_aws_ec2_instance/${availabilityZone}/${encodeURIComponent(name)}/${instanceCount}/${size}/${gpu}/${encodeURIComponent(createdBy)}`;
+      const url = `https://laxcoresrv.buck.local:8000/aws/create_aws_ec2_instance/${region}/${encodeURIComponent(name)}/${instanceCount}/${size}/${gpu}/${encodeURIComponent(createdBy)}`;
       console.log(`Protected API POST request to: ${url}`);
       const response = await fetch(url, {
         method: 'POST',
@@ -116,12 +124,13 @@ export default function RenderManagement() {
       return;
     }
 
-    createInstancesMutation.mutate({ 
+    createInstancesMutation.mutate({
       name: name.trim(),
       instanceCount: parseInt(instanceCount),
       size: size.trim(),
       gpu: gpu.trim(),
-      createdBy: createdBy.trim()
+      createdBy: createdBy.trim(),
+      region: awsRegion
     });
   };
 
@@ -139,6 +148,60 @@ export default function RenderManagement() {
         <Typography variant="h5" sx={{ mb: 2 }}>Create AWS EC2 Instances</Typography>
         
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <FormControl fullWidth disabled={createInstancesMutation.isPending} sx={{ backgroundColor: '#ffffff' }}>
+            <InputLabel id="region-label" sx={{ backgroundColor: '#ffffff', px: 0.5 }}>AWS Region</InputLabel>
+            <Select
+              labelId="region-label"
+              value={awsRegion}
+              label="AWS Region"
+              onChange={(e) => setAwsRegion(e.target.value)}
+              sx={{
+                backgroundColor: '#ffffff !important',
+                '& .MuiSelect-select': {
+                  backgroundColor: '#ffffff',
+                },
+                '& .MuiOutlinedInput-input': {
+                  backgroundColor: '#ffffff',
+                },
+                '& .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(0, 0, 0, 0.23)',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(0, 0, 0, 0.87)',
+                },
+                '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'primary.main',
+                }
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    backgroundColor: '#ffffff',
+                    '& .MuiMenuItem-root': {
+                      backgroundColor: '#ffffff',
+                      '&:hover': {
+                        backgroundColor: '#f5f5f5',
+                      },
+                      '&.Mui-selected': {
+                        backgroundColor: '#e3f2fd',
+                        '&:hover': {
+                          backgroundColor: '#bbdefb',
+                        },
+                      },
+                    },
+                  },
+                },
+              }}
+            >
+              {AWS_REGIONS.map((region) => (
+                <MenuItem key={region.value} value={region.value}>
+                  {region.label}
+                </MenuItem>
+              ))}
+            </Select>
+            <FormHelperText>Select the AWS region for the instances</FormHelperText>
+          </FormControl>
+
           <TextField
             label="Instance Name"
             value={name}

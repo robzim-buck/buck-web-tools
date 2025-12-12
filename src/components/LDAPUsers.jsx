@@ -7,7 +7,7 @@ import {
   IconButton, Avatar, Tooltip,
   Collapse, Button, CircularProgress, Alert, AlertTitle,
   Table, TableContainer, TableBody, TableCell, TableRow,
-  MenuItem
+  MenuItem, Pagination, ToggleButtonGroup, ToggleButton
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -19,9 +19,12 @@ import {
   CalendarToday as CalendarIcon,
   FilterAlt as FilterIcon,
   Lock as LockIcon,
-  LockOpen as LockOpenIcon
+  LockOpen as LockOpenIcon,
+  ViewList as ViewListIcon,
+  TableView as TableViewIcon
 } from '@mui/icons-material';
 import uuid from 'react-uuid';
+import MUIDataTable from 'mui-datatables';
 
 
 
@@ -58,6 +61,9 @@ export default function LDAPUsers(props) {
         accountStatus: '',
         lastLogin: ''
     });
+    const [viewMode, setViewMode] = useState('card'); // 'card' or 'table'
+    const [page, setPage] = useState(1);
+    const [rowsPerPage] = useState(10);
     
     // Toggle user expansion
     const toggleUserExpand = (userId) => {
@@ -297,24 +303,43 @@ export default function LDAPUsers(props) {
                         </IconButton>
                     </Box>
 
-                    <Box>
-                        <Button
-                            variant="outlined"
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <ToggleButtonGroup
+                            value={viewMode}
+                            exclusive
+                            onChange={(_, newMode) => newMode && setViewMode(newMode)}
                             size="small"
-                            onClick={() => toggleExpandAll(finalFilteredUsers, true)}
-                            startIcon={<ExpandMoreIcon />}
-                            sx={{ mr: 1 }}
                         >
-                            Expand All
-                        </Button>
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={() => toggleExpandAll(finalFilteredUsers, false)}
-                            startIcon={<ExpandLessIcon />}
-                        >
-                            Collapse All
-                        </Button>
+                            <ToggleButton value="card" aria-label="card view">
+                                <ViewListIcon sx={{ mr: 0.5 }} fontSize="small" />
+                                Card
+                            </ToggleButton>
+                            <ToggleButton value="table" aria-label="table view">
+                                <TableViewIcon sx={{ mr: 0.5 }} fontSize="small" />
+                                Table
+                            </ToggleButton>
+                        </ToggleButtonGroup>
+
+                        {viewMode === 'card' && (
+                            <>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => toggleExpandAll(finalFilteredUsers, true)}
+                                    startIcon={<ExpandMoreIcon />}
+                                >
+                                    Expand All
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => toggleExpandAll(finalFilteredUsers, false)}
+                                    startIcon={<ExpandLessIcon />}
+                                >
+                                    Collapse All
+                                </Button>
+                            </>
+                        )}
                     </Box>
                 </Box>
                 
@@ -436,8 +461,8 @@ export default function LDAPUsers(props) {
                         <Typography variant="h6" color="text.secondary" gutterBottom>
                             No users match your search or filters
                         </Typography>
-                        <Button 
-                            variant="outlined" 
+                        <Button
+                            variant="outlined"
                             onClick={() => {
                                 setSearchTerm('');
                                 handleResetFilters();
@@ -448,9 +473,10 @@ export default function LDAPUsers(props) {
                             Clear All Filters
                         </Button>
                     </Paper>
-                ) : (
+                ) : viewMode === 'card' ? (
+                    <>
                     <Grid container spacing={2}>
-                        {finalFilteredUsers.map(user => {
+                        {finalFilteredUsers.slice((page - 1) * rowsPerPage, page * rowsPerPage).map(user => {
                             const isExpanded = expandedUsers[user.name] || false;
                             const accountStatus = setADLabel(user.userAccountControl);
                             const statusColor = setColor(user.userAccountControl);
@@ -610,6 +636,156 @@ export default function LDAPUsers(props) {
                             );
                         })}
                     </Grid>
+                    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                        <Pagination
+                            count={Math.ceil(finalFilteredUsers.length / rowsPerPage)}
+                            page={page}
+                            onChange={(_, value) => setPage(value)}
+                            color="primary"
+                            size="large"
+                        />
+                    </Box>
+                    </>
+                ) : (
+                    /* Table View with MUIDataTable */
+                    <MUIDataTable
+                        title=""
+                        data={finalFilteredUsers}
+                        columns={[
+                            {
+                                name: 'name',
+                                label: 'User Name',
+                                options: {
+                                    filter: true,
+                                    sort: true,
+                                    customBodyRender: (value, tableMeta) => {
+                                        const user = finalFilteredUsers[tableMeta.rowIndex];
+                                        const accountStatus = setADLabel(user.userAccountControl);
+                                        const statusColor = setColor(user.userAccountControl);
+                                        return (
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                                <Avatar
+                                                    sx={{
+                                                        width: 32,
+                                                        height: 32,
+                                                        bgcolor: statusColor === 'success' ? 'primary.main' :
+                                                                 statusColor === 'error' ? 'error.main' : 'warning.main'
+                                                    }}
+                                                >
+                                                    {statusColor === 'error' ? <LockIcon fontSize="small" /> : <PersonIcon fontSize="small" />}
+                                                </Avatar>
+                                                <Typography variant="body2" fontWeight="medium">
+                                                    {value}
+                                                </Typography>
+                                            </Box>
+                                        );
+                                    }
+                                }
+                            },
+                            {
+                                name: 'userAccountControl',
+                                label: 'Status',
+                                options: {
+                                    filter: true,
+                                    sort: true,
+                                    customBodyRender: (value) => {
+                                        const accountStatus = setADLabel(value);
+                                        const statusColor = setColor(value);
+                                        return (
+                                            <Chip
+                                                size="small"
+                                                color={statusColor}
+                                                label={accountStatus}
+                                                sx={{ height: 24 }}
+                                            />
+                                        );
+                                    }
+                                }
+                            },
+                            {
+                                name: 'lastLogon',
+                                label: 'Last Login',
+                                options: {
+                                    filter: true,
+                                    sort: true,
+                                    customBodyRender: (value) => (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <CalendarIcon fontSize="small" color="action" />
+                                            <Typography variant="body2" color="text.secondary">
+                                                {formatDate(value)}
+                                            </Typography>
+                                        </Box>
+                                    )
+                                }
+                            },
+                            {
+                                name: 'description',
+                                label: 'Description',
+                                options: {
+                                    filter: true,
+                                    sort: true,
+                                    customBodyRender: (value) => (
+                                        <Typography variant="body2" color="text.secondary" noWrap>
+                                            {value || '-'}
+                                        </Typography>
+                                    )
+                                }
+                            },
+                            {
+                                name: 'whenCreated',
+                                label: 'Created',
+                                options: {
+                                    filter: false,
+                                    sort: true,
+                                    customBodyRender: (value) => (
+                                        <Typography variant="body2" color="text.secondary">
+                                            {formatDate(value)}
+                                        </Typography>
+                                    )
+                                }
+                            },
+                            {
+                                name: 'distinguishedName',
+                                label: 'Distinguished Name',
+                                options: {
+                                    filter: false,
+                                    sort: false,
+                                    display: false,
+                                    customBodyRender: (value) => (
+                                        <Box sx={{
+                                            maxWidth: 400,
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap',
+                                            fontFamily: 'monospace',
+                                            fontSize: '0.75rem'
+                                        }}>
+                                            {value}
+                                        </Box>
+                                    )
+                                }
+                            }
+                        ]}
+                        options={{
+                            filterType: 'dropdown',
+                            responsive: 'standard',
+                            selectableRows: 'none',
+                            download: true,
+                            print: false,
+                            viewColumns: true,
+                            pagination: true,
+                            rowsPerPage: 10,
+                            rowsPerPageOptions: [5, 10, 25, 50, 100],
+                            elevation: 0,
+                            searchOpen: false,
+                            searchPlaceholder: 'Search users...',
+                            textLabels: {
+                                body: {
+                                    noMatch: 'No users match your search or filters',
+                                }
+                            }
+                        }}
+                    />
                 )}
             </Container>
         );

@@ -1,10 +1,10 @@
 import {
   Typography, Paper, Grid, Box, Button, TextField, Autocomplete,
   CircularProgress, Alert, Snackbar, Chip, Card, CardContent,
-  IconButton,
+  IconButton, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions, Fade, Divider, Avatar,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
-  ToggleButtonGroup, ToggleButton, InputAdornment
+  ToggleButtonGroup, ToggleButton, InputAdornment, Switch, FormControlLabel
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -17,14 +17,17 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import TableViewIcon from '@mui/icons-material/TableView';
 import SearchIcon from '@mui/icons-material/Search';
-import { useState, useMemo } from 'react';
+import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import { useState, useMemo, useEffect } from 'react';
 import { useProtectedApiGet } from '../hooks/useApi';
 import { useAppData } from '../contexts/AppDataProvider';
 import CompositeMachineInfo from './CompositeMachineInfo';
+import MUIDataTable from 'mui-datatables';
 
 export default function AssignWorkstations({ name = "Assign Workstations" }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedMachine, setSelectedMachine] = useState(null);
+  const [selectedParsecUser, setSelectedParsecUser] = useState(null);
   const [selectedParsecHost, setSelectedParsecHost] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, assignment: null });
@@ -35,13 +38,36 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
   const [searchFilter, setSearchFilter] = useState('');
   const [orderBy, setOrderBy] = useState('email');
   const [order, setOrder] = useState('asc');
+  const [showAllAssignments, setShowAllAssignments] = useState(false); // false = show only unreleased
+
+  // Parsec assignments view mode state
+  const [parsecViewMode, setParsecViewMode] = useState('card'); // 'card' or 'table'
+  const [parsecSearchFilter, setParsecSearchFilter] = useState('');
+  const [parsecOrderBy, setParsecOrderBy] = useState('email');
+  const [parsecOrder, setParsecOrder] = useState('asc');
 
 
-  // Get data from context (pre-fetched)
-  const { queries, data } = useAppData();
+  // Get data from context (lazy-loaded)
+  const { queries, data, requestData } = useAppData();
+
+  // Request the data this component needs
+  useEffect(() => {
+    requestData([
+      'oktaUsers',
+      'parsecUsers',
+      'googleStaff',
+      'googleFreelance',
+      'saltMachineInfo',
+      'ldapRawMachineInfo',
+      'assignments'
+    ]);
+  }, [requestData]);
 
   // Use Okta users from context
   const usersQuery = queries.oktaUsers;
+
+  // Use Parsec users from context
+  const parsecUsersQuery = queries.parsecUsers;
 
   // Get Google users data for profile pictures
   const googleUsersByEmail = data.googleUsersByEmail || {};
@@ -225,11 +251,11 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
           }
         }
       );
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
-      
+
       setSnackbar({
         open: true,
         message: 'Assignment removed successfully!',
@@ -244,6 +270,39 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
         severity: 'error'
       });
       setDeleteDialog({ open: false, assignment: null });
+      throw error;
+    }
+  };
+
+  // Release assignment - set released field to true
+  const releaseAssignment = async (email, machineName, permanent = true) => {
+    try {
+      const response = await fetch(
+        `https://laxcoresrv.buck.local:8000/assignments/release/${encodeURIComponent(email)}/${encodeURIComponent(machineName)}`,
+        {
+          method: 'PUT',
+          headers: {
+            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      setSnackbar({
+        open: true,
+        message: 'Assignment released successfully!',
+        severity: 'success'
+      });
+      assignmentsQuery.refetch();
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Failed to release assignment: ${error.message}`,
+        severity: 'error'
+      });
       throw error;
     }
   };
@@ -365,6 +424,38 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
     console.log('Users data is not an array:', typeof usersQuery.data);
     return [];
   }, [usersQuery.data, googleUsersByEmail]);
+
+  // Process parsec users data
+  const parsecUsersList = useMemo(() => {
+    if (!parsecUsersQuery.data) return [];
+
+    console.log('Raw parsec users data:', parsecUsersQuery.data);
+
+    if (Array.isArray(parsecUsersQuery.data)) {
+      const processed = parsecUsersQuery.data
+        .map(user => {
+          // Get Google user data for profile picture
+          const googleUser = googleUsersByEmail[user.email.toLowerCase()];
+          const profilePicture = googleUser?.thumbnailPhotoUrl || googleUser?.photoUrl || null;
+
+          return {
+            email: user.email,
+            label: `${user.email}${user.name ? ` (${user.name})` : ''}`,
+            displayName: user.name,
+            firstName: user.name ? user.name.split(' ')[0] : '',
+            lastName: user.name ? user.name.split(' ').slice(1).join(' ') : '',
+            profilePicture: profilePicture,
+            user_id: user.user_id
+          };
+        });
+      console.log('Processed parsec users:', processed);
+      console.log('Parsec users with profile pictures:', processed.filter(u => u.profilePicture).length);
+      return processed;
+    }
+
+    console.log('Parsec users data is not an array:', typeof parsecUsersQuery.data);
+    return [];
+  }, [parsecUsersQuery.data, googleUsersByEmail]);
 
   // Process machines data
   const machinesList = useMemo(() => {
@@ -717,9 +808,41 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
     return [];
   }, [assignmentsQuery.data]);
 
+  // Create lookup for last assigned machine per user email
+  const lastAssignedMachineByEmail = useMemo(() => {
+    const lookup = {};
+
+    if (!assignmentsList.length) return lookup;
+
+    // Sort by assigned_at descending to get most recent first
+    const sortedAssignments = [...assignmentsList].sort((a, b) => {
+      const dateA = a.assigned_at ? new Date(a.assigned_at).getTime() : 0;
+      const dateB = b.assigned_at ? new Date(b.assigned_at).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    // For each user, store their most recent assignment
+    sortedAssignments.forEach(assignment => {
+      if (assignment.email && !lookup[assignment.email.toLowerCase()]) {
+        lookup[assignment.email.toLowerCase()] = {
+          machineName: assignment.machine_name,
+          assignedAt: assignment.assigned_at,
+          released: assignment.released
+        };
+      }
+    });
+
+    return lookup;
+  }, [assignmentsList]);
+
   // Filtered and sorted assignments
   const filteredAndSortedAssignments = useMemo(() => {
     let filtered = [...assignmentsList];
+
+    // Filter by released status - only show unreleased assignments by default
+    if (!showAllAssignments) {
+      filtered = filtered.filter(assignment => !assignment.released);
+    }
 
     // Apply search filter
     if (searchFilter) {
@@ -762,13 +885,78 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
     });
 
     return filtered;
-  }, [assignmentsList, searchFilter, orderBy, order]);
+  }, [assignmentsList, searchFilter, orderBy, order, showAllAssignments]);
 
   // Handle sorting
   const handleRequestSort = (property) => {
     const isAsc = orderBy === property && order === 'asc';
     setOrder(isAsc ? 'desc' : 'asc');
     setOrderBy(property);
+  };
+
+  // Filtered and sorted parsec assignments
+  const filteredAndSortedParsecAssignments = useMemo(() => {
+    if (!queries.parsecReport.data) return [];
+
+    let filtered = [...queries.parsecReport.data].filter(item => item.email); // Only show assigned hosts
+
+    // Apply search filter
+    if (parsecSearchFilter) {
+      const lowerFilter = parsecSearchFilter.toLowerCase();
+      filtered = filtered.filter(item =>
+        (item.email && item.email.toLowerCase().includes(lowerFilter)) ||
+        (item.name && item.name.toLowerCase().includes(lowerFilter)) ||
+        (item.host && item.host.toLowerCase().includes(lowerFilter))
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (parsecOrderBy) {
+        case 'email':
+          aValue = a.email || '';
+          bValue = b.email || '';
+          break;
+        case 'name':
+          aValue = a.name || '';
+          bValue = b.name || '';
+          break;
+        case 'host':
+          aValue = a.host || '';
+          bValue = b.host || '';
+          break;
+        case 'status':
+          aValue = a.machine_online || '';
+          bValue = b.machine_online || '';
+          break;
+        case 'last_connected':
+          aValue = a.last_connected || '';
+          bValue = b.last_connected || '';
+          break;
+        default:
+          aValue = a.email || '';
+          bValue = b.email || '';
+      }
+
+      if (aValue < bValue) {
+        return parsecOrder === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return parsecOrder === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+
+    return filtered;
+  }, [queries.parsecReport.data, parsecSearchFilter, parsecOrderBy, parsecOrder]);
+
+  // Handle parsec sorting
+  const handleParsecRequestSort = (property) => {
+    const isAsc = parsecOrderBy === property && parsecOrder === 'asc';
+    setParsecOrder(isAsc ? 'desc' : 'asc');
+    setParsecOrderBy(property);
   };
 
 
@@ -819,20 +1007,20 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
 
   const handleAssignParsec = async () => {
     console.log('handleAssignParsec called');
-    console.log('selectedUser:', selectedUser);
+    console.log('selectedParsecUser:', selectedParsecUser);
     console.log('selectedParsecHost:', selectedParsecHost);
 
-    if (!selectedUser || !selectedParsecHost) {
+    if (!selectedParsecUser || !selectedParsecHost) {
       setSnackbar({
         open: true,
-        message: 'Please select both a user and a Parsec host',
+        message: 'Please select both a parsec user and a Parsec host',
         severity: 'warning'
       });
       return;
     }
 
     // Debug the values being passed
-    const userEmail = selectedUser.email;
+    const userEmail = selectedParsecUser.email;
     const hostId = selectedParsecHost.hostId;
     console.log('Assigning Parsec host:');
     console.log('- User email:', userEmail);
@@ -842,7 +1030,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
     if (!userEmail) {
       setSnackbar({
         open: true,
-        message: 'Selected user does not have an email address',
+        message: 'Selected parsec user does not have an email address',
         severity: 'error'
       });
       return;
@@ -864,9 +1052,11 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
       if (result && result.status === 'warning') {
         console.log('Parsec assignment returned warning:', result.message);
         // Still clear the selection for warnings (422 errors)
+        setSelectedParsecUser(null);
         setSelectedParsecHost(null);
       } else {
         // Success case
+        setSelectedParsecUser(null);
         setSelectedParsecHost(null);
       }
     } catch (error) {
@@ -983,7 +1173,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
           variant="h2"
           sx={{
             fontWeight: 700,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
@@ -993,7 +1183,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
         >
           {name}
         </Typography>
-        <Typography variant="body1" sx={{ color: '#718096', fontWeight: 500 }}>
+        <Typography variant="body1" sx={{ color: '#64748b', fontWeight: 500 }}>
           Manage workstation assignments and Parsec hosts efficiently
         </Typography>
       </Box>
@@ -1011,34 +1201,34 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
         flexWrap: 'wrap'
       }}>
         <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="h5" sx={{ color: '#667eea', fontWeight: 700 }}>
+          <Typography variant="h5" sx={{ color: '#1e40af', fontWeight: 700 }}>
             {usersList.length}
           </Typography>
-          <Typography variant="caption" sx={{ color: '#718096' }}>
+          <Typography variant="caption" sx={{ color: '#64748b' }}>
             Users
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="h5" sx={{ color: '#43a047', fontWeight: 700 }}>
+          <Typography variant="h5" sx={{ color: '#047857', fontWeight: 700 }}>
             {machinesList.length}
           </Typography>
-          <Typography variant="caption" sx={{ color: '#718096' }}>
+          <Typography variant="caption" sx={{ color: '#64748b' }}>
             Machines
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="h5" sx={{ color: '#f093fb', fontWeight: 700 }}>
+          <Typography variant="h5" sx={{ color: '#0891b2', fontWeight: 700 }}>
             {parsecMachinesList.length}
           </Typography>
-          <Typography variant="caption" sx={{ color: '#718096' }}>
+          <Typography variant="caption" sx={{ color: '#64748b' }}>
             Parsec Hosts
           </Typography>
         </Box>
         <Box sx={{ textAlign: 'center' }}>
-          <Typography variant="h5" sx={{ color: '#f5576c', fontWeight: 700 }}>
+          <Typography variant="h5" sx={{ color: '#dc2626', fontWeight: 700 }}>
             {assignmentsList.length}
           </Typography>
-          <Typography variant="caption" sx={{ color: '#718096' }}>
+          <Typography variant="caption" sx={{ color: '#64748b' }}>
             Assignments
           </Typography>
         </Box>
@@ -1049,7 +1239,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
         <Grid size={12}>
           <Card
             sx={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
               borderRadius: 3,
               overflow: 'visible',
@@ -1061,7 +1251,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                 left: 0,
                 right: 0,
                 height: '4px',
-                background: 'linear-gradient(90deg, #f093fb 0%, #f5576c 100%)',
+                background: 'linear-gradient(90deg, #0891b2 0%, #dc2626 100%)',
                 borderRadius: '12px 12px 0 0'
               }
             }}
@@ -1079,7 +1269,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                 </Box>
               </Box>
 
-              <Grid container spacing={3}>
+              <Grid container spacing={3} columns={15}>
                 <Grid size={3}>
                   <Box sx={{
                     bgcolor: 'rgba(255, 255, 255, 0.95)',
@@ -1093,8 +1283,8 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                     }
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}>
-                      <PersonIcon sx={{ color: '#667eea', fontSize: 24 }} />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#667eea' }}>
+                      <PersonIcon sx={{ color: '#1e40af', fontSize: 24 }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e40af' }}>
                         Select User
                       </Typography>
                     </Box>
@@ -1110,6 +1300,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
                             borderRadius: 2,
                             mt: 1,
+                            minWidth: 550,
                             '& .MuiAutocomplete-listbox': {
                               backgroundColor: 'white',
                               '& .MuiAutocomplete-option': {
@@ -1143,8 +1334,8 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                     height: 28,
                                     ml: 0.5,
                                     mr: 1,
-                                    border: '2px solid #667eea',
-                                    bgcolor: selectedUser.profilePicture ? 'transparent' : '#667eea',
+                                    border: '2px solid #1e40af',
+                                    bgcolor: selectedUser.profilePicture ? 'transparent' : '#1e40af',
                                     fontSize: '0.75rem'
                                   }}
                                 >
@@ -1164,7 +1355,169 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                 borderColor: 'rgba(102, 126, 234, 0.4)'
                               },
                               '&.Mui-focused fieldset': {
-                                borderColor: '#667eea'
+                                borderColor: '#1e40af'
+                              }
+                            }
+                          }}
+                        />
+                      )}
+                      renderOption={(props, option) => {
+                        const lastAssignment = lastAssignedMachineByEmail[option.email.toLowerCase()];
+                        const { key, ...otherProps } = props;
+                        return (
+                          <Box component="li" key={key} {...otherProps} sx={{ backgroundColor: 'transparent !important', p: 0.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%' }}>
+                              <Tooltip title="Select user only" arrow placement="left">
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+                                  <Avatar
+                                    src={option.profilePicture}
+                                    alt={option.displayName || option.email}
+                                    sx={{
+                                      width: 40,
+                                      height: 40,
+                                      border: '2px solid #1e40af',
+                                      bgcolor: option.profilePicture ? 'transparent' : '#1e40af'
+                                    }}
+                                  >
+                                    {!option.profilePicture && (option.firstName?.[0] || option.email[0]).toUpperCase()}
+                                  </Avatar>
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography sx={{ fontWeight: 500 }}>{option.email}</Typography>
+                                    {option.displayName && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                        {option.displayName}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                </Box>
+                              </Tooltip>
+                              {lastAssignment && (
+                                <Tooltip title="Select user and assign this workstation" arrow placement="right">
+                                  <Chip
+                                    size="small"
+                                    icon={<ComputerIcon sx={{ fontSize: 14 }} />}
+                                    label={`Last: ${lastAssignment.machineName}${lastAssignment.released ? '' : ' (active)'}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedUser(option);
+                                      const machine = machinesList.find(m =>
+                                        m.name.toLowerCase() === lastAssignment.machineName.toLowerCase()
+                                      );
+                                      if (machine) {
+                                        setSelectedMachine(machine);
+                                      }
+                                    }}
+                                    sx={{
+                                      cursor: 'pointer',
+                                      bgcolor: lastAssignment.released ? 'grey.200' : 'rgba(5, 150, 105, 0.1)',
+                                      color: lastAssignment.released ? 'text.secondary' : '#059669',
+                                      fontStyle: lastAssignment.released ? 'italic' : 'normal',
+                                      fontSize: '0.7rem',
+                                      height: 24,
+                                      '&:hover': {
+                                        bgcolor: lastAssignment.released ? 'grey.300' : 'rgba(5, 150, 105, 0.2)',
+                                      },
+                                      '& .MuiChip-icon': {
+                                        color: 'inherit'
+                                      }
+                                    }}
+                                  />
+                                </Tooltip>
+                              )}
+                            </Box>
+                          </Box>
+                        );
+                      }}
+                    />
+                  </Box>
+                </Grid>
+
+                <Grid size={3}>
+                  <Box sx={{
+                    bgcolor: 'rgba(255, 255, 255, 0.95)',
+                    borderRadius: 2,
+                    p: 2,
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)'
+                    }
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}>
+                      <PersonIcon sx={{ color: '#0891b2', fontSize: 24 }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#0891b2' }}>
+                        Select Parsec User
+                      </Typography>
+                    </Box>
+                    <Autocomplete
+                      value={selectedParsecUser}
+                      onChange={(_, newValue) => setSelectedParsecUser(newValue)}
+                      options={parsecUsersList}
+                      getOptionLabel={(option) => option.label}
+                      slotProps={{
+                        paper: {
+                          sx: {
+                            backgroundColor: 'white',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+                            borderRadius: 2,
+                            mt: 1,
+                            minWidth: 400,
+                            '& .MuiAutocomplete-listbox': {
+                              backgroundColor: 'white',
+                              '& .MuiAutocomplete-option': {
+                                borderRadius: 1,
+                                mx: 1,
+                                '&:hover': {
+                                  bgcolor: 'rgba(8, 145, 178, 0.08)'
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          placeholder="Search parsec users..."
+                          variant="outlined"
+                          fullWidth
+                          size="small"
+                          helperText={`${parsecUsersList.length} parsec users available`}
+                          InputProps={{
+                            ...params.InputProps,
+                            startAdornment: selectedParsecUser ? (
+                              <>
+                                <Avatar
+                                  src={selectedParsecUser.profilePicture}
+                                  alt={selectedParsecUser.displayName || selectedParsecUser.email}
+                                  sx={{
+                                    width: 28,
+                                    height: 28,
+                                    ml: 0.5,
+                                    mr: 1,
+                                    border: '2px solid #0891b2',
+                                    bgcolor: selectedParsecUser.profilePicture ? 'transparent' : '#0891b2',
+                                    fontSize: '0.75rem'
+                                  }}
+                                >
+                                  {!selectedParsecUser.profilePicture && (selectedParsecUser.firstName?.[0] || selectedParsecUser.email[0]).toUpperCase()}
+                                </Avatar>
+                                {params.InputProps.startAdornment}
+                              </>
+                            ) : params.InputProps.startAdornment
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              bgcolor: 'white',
+                              '& fieldset': {
+                                borderColor: 'rgba(203, 213, 225, 0.5)'
+                              },
+                              '&:hover fieldset': {
+                                borderColor: 'rgba(148, 163, 184, 0.4)'
+                              },
+                              '&.Mui-focused fieldset': {
+                                borderColor: '#0891b2'
                               }
                             }
                           }}
@@ -1179,8 +1532,8 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                               sx={{
                                 width: 40,
                                 height: 40,
-                                border: '2px solid #667eea',
-                                bgcolor: option.profilePicture ? 'transparent' : '#667eea'
+                                border: '2px solid #0891b2',
+                                bgcolor: option.profilePicture ? 'transparent' : '#0891b2'
                               }}
                             >
                               {!option.profilePicture && (option.firstName?.[0] || option.email[0]).toUpperCase()}
@@ -1207,14 +1560,15 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                     p: 2,
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
                     transition: 'all 0.3s ease',
-                    '&:hover': {
+                    opacity: !selectedParsecUser ? 0.6 : 1,
+                    '&:hover': !selectedParsecUser ? {} : {
                       transform: 'translateY(-2px)',
                       boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)'
                     }
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}>
-                      <StorageIcon sx={{ color: '#f093fb', fontSize: 24 }} />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#f093fb' }}>
+                      <StorageIcon sx={{ color: '#0891b2', fontSize: 24 }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#0891b2' }}>
                         Parsec Host
                       </Typography>
                     </Box>
@@ -1226,6 +1580,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                       }}
                       options={parsecMachinesList}
                       getOptionLabel={(option) => option.label || option.host || 'Unknown'}
+                      disabled={!selectedParsecUser}
                       slotProps={{
                         paper: {
                           sx: {
@@ -1239,7 +1594,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                 borderRadius: 1,
                                 mx: 1,
                                 '&:hover': {
-                                  bgcolor: 'rgba(240, 147, 251, 0.08)'
+                                  bgcolor: 'rgba(8, 145, 178, 0.08)'
                                 }
                               }
                             }
@@ -1253,18 +1608,18 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                           variant="outlined"
                           fullWidth
                           size="small"
-                          helperText={parsecMachinesQuery.isLoading ? 'Loading...' : parsecMachinesQuery.error ? `Error: ${parsecMachinesQuery.error.message}` : `${parsecMachinesList.length} hosts available`}
+                          helperText={!selectedParsecUser ? "Select a parsec user first" : parsecMachinesQuery.isLoading ? 'Loading...' : parsecMachinesQuery.error ? `Error: ${parsecMachinesQuery.error.message}` : `${parsecMachinesList.length} hosts available`}
                           sx={{
                             '& .MuiOutlinedInput-root': {
                               bgcolor: 'white',
                               '& fieldset': {
-                                borderColor: 'rgba(240, 147, 251, 0.2)'
+                                borderColor: 'rgba(203, 213, 225, 0.5)'
                               },
                               '&:hover fieldset': {
-                                borderColor: 'rgba(240, 147, 251, 0.4)'
+                                borderColor: 'rgba(148, 163, 184, 0.4)'
                               },
                               '&.Mui-focused fieldset': {
-                                borderColor: '#f093fb'
+                                borderColor: '#0891b2'
                               }
                             }
                           }}
@@ -1291,7 +1646,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                           </Box>
                         </Box>
                       )}
-                      noOptionsText="No Parsec hosts available"
+                      noOptionsText={selectedParsecUser ? "No Parsec hosts available" : "Select a parsec user first"}
                     />
                   </Box>
                 </Grid>
@@ -1310,8 +1665,8 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                     }
                   }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5, gap: 1 }}>
-                      <ComputerIcon sx={{ color: '#43a047', fontSize: 24 }} />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#43a047' }}>
+                      <ComputerIcon sx={{ color: '#1e40af', fontSize: 24 }} />
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1e40af' }}>
                         Workstation
                       </Typography>
                     </Box>
@@ -1337,7 +1692,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                 borderRadius: 1,
                                 mx: 1,
                                 '&:hover': {
-                                  bgcolor: 'rgba(67, 160, 71, 0.08)'
+                                  bgcolor: 'rgba(102, 126, 234, 0.08)'
                                 }
                               }
                             }
@@ -1356,13 +1711,13 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                             '& .MuiOutlinedInput-root': {
                               bgcolor: 'white',
                               '& fieldset': {
-                                borderColor: 'rgba(67, 160, 71, 0.2)'
+                                borderColor: 'rgba(102, 126, 234, 0.2)'
                               },
                               '&:hover fieldset': {
-                                borderColor: 'rgba(67, 160, 71, 0.4)'
+                                borderColor: 'rgba(102, 126, 234, 0.4)'
                               },
                               '&.Mui-focused fieldset': {
-                                borderColor: '#43a047'
+                                borderColor: '#1e40af'
                               }
                             }
                           }}
@@ -1443,7 +1798,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                       disabled={!selectedUser || !selectedMachine}
                       startIcon={<AddIcon />}
                       sx={{
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
                         color: 'white',
                         fontWeight: 600,
                         py: 1.5,
@@ -1451,7 +1806,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                         boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
                         transition: 'all 0.3s ease',
                         '&:hover': {
-                          background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                          background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)',
                           boxShadow: '0 8px 24px rgba(102, 126, 234, 0.4)',
                           transform: 'translateY(-2px)'
                         },
@@ -1468,19 +1823,19 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                       size="large"
                       fullWidth
                       onClick={handleAssignParsec}
-                      disabled={!selectedUser || !selectedParsecHost}
+                      disabled={!selectedParsecUser || !selectedParsecHost}
                       startIcon={<AddIcon />}
                       sx={{
-                        background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                        background: 'linear-gradient(135deg, #0891b2 0%, #dc2626 100%)',
                         color: 'white',
                         fontWeight: 600,
                         py: 1.5,
                         borderRadius: 2,
-                        boxShadow: '0 4px 12px rgba(240, 147, 251, 0.3)',
+                        boxShadow: '0 4px 12px rgba(148, 163, 184, 0.3)',
                         transition: 'all 0.3s ease',
                         '&:hover': {
-                          background: 'linear-gradient(135deg, #f5576c 0%, #f093fb 100%)',
-                          boxShadow: '0 8px 24px rgba(240, 147, 251, 0.4)',
+                          background: 'linear-gradient(135deg, #dc2626 0%, #0891b2 100%)',
+                          boxShadow: '0 8px 24px rgba(148, 163, 184, 0.4)',
                           transform: 'translateY(-2px)'
                         },
                         '&:disabled': {
@@ -1553,10 +1908,10 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                           onDelete={() => handleDeleteAssignment(assignment)}
                           sx={{
                             bgcolor: 'rgba(255, 255, 255, 0.95)',
-                            color: '#667eea',
+                            color: '#1e40af',
                             fontWeight: 600,
                             '& .MuiChip-deleteIcon': {
-                              color: '#f5576c',
+                              color: '#dc2626',
                               '&:hover': {
                                 color: '#d32f2f'
                               }
@@ -1588,7 +1943,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                 left: 0,
                 right: 0,
                 height: '4px',
-                background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+                background: 'linear-gradient(90deg, #1e40af 0%, #1e3a8a 100%)',
                 borderRadius: '12px 12px 0 0'
               }
             }}
@@ -1597,9 +1952,9 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 600, color: '#2d3748', letterSpacing: '-0.5px' }}>
-                    All Assignments
+                    All Global Workstation Assignments
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#718096', mt: 0.5 }}>
+                  <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
                     Complete overview of workstation assignments
                   </Typography>
                 </Box>
@@ -1610,7 +1965,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                     onClick={() => assignmentsQuery.refetch()}
                     disabled={assignmentsQuery.isRefetching}
                     sx={{
-                      background: 'linear-gradient(135deg, #43a047 0%, #66bb6a 100%)',
+                      background: 'linear-gradient(135deg, #047857 0%, #059669 100%)',
                       color: 'white',
                       fontWeight: 600,
                       px: 3,
@@ -1618,7 +1973,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                       boxShadow: '0 4px 12px rgba(67, 160, 71, 0.3)',
                       transition: 'all 0.3s ease',
                       '&:hover': {
-                        background: 'linear-gradient(135deg, #66bb6a 0%, #43a047 100%)',
+                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
                         boxShadow: '0 6px 16px rgba(67, 160, 71, 0.4)',
                         transform: 'translateY(-2px)'
                       },
@@ -1633,7 +1988,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   <Chip
                     label={`${assignmentsList.length} Total`}
                     sx={{
-                      bgcolor: '#667eea',
+                      bgcolor: '#1e40af',
                       color: 'white',
                       fontWeight: 600,
                       fontSize: '1rem',
@@ -1662,16 +2017,44 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                         borderColor: 'rgba(102, 126, 234, 0.4)'
                       },
                       '&.Mui-focused fieldset': {
-                        borderColor: '#667eea'
+                        borderColor: '#1e40af'
                       }
                     }
                   }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <SearchIcon sx={{ color: '#667eea' }} />
+                        <SearchIcon sx={{ color: '#1e40af' }} />
                       </InputAdornment>
                     )
+                  }}
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={showAllAssignments}
+                      onChange={(e) => setShowAllAssignments(e.target.checked)}
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': {
+                          color: '#1e40af',
+                          '&:hover': {
+                            backgroundColor: 'rgba(102, 126, 234, 0.08)',
+                          },
+                        },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                          backgroundColor: '#1e40af',
+                        },
+                      }}
+                    />
+                  }
+                  label={<Typography variant="body2" sx={{ color: '#2d3748', fontWeight: 500 }}>Show All</Typography>}
+                  sx={{
+                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: 1,
+                    px: 1.5,
+                    py: 0.5,
+                    m: 0,
+                    border: '1px solid rgba(102, 126, 234, 0.2)'
                   }}
                 />
                 <ToggleButtonGroup
@@ -1681,13 +2064,13 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   sx={{
                     bgcolor: 'rgba(255, 255, 255, 0.9)',
                     '& .MuiToggleButton-root': {
-                      color: '#667eea',
+                      color: '#1e40af',
                       borderColor: 'rgba(102, 126, 234, 0.2)',
                       '&.Mui-selected': {
-                        bgcolor: '#667eea',
+                        bgcolor: '#1e40af',
                         color: 'white',
                         '&:hover': {
-                          bgcolor: '#764ba2'
+                          bgcolor: '#1e3a8a'
                         }
                       }
                     }
@@ -1715,7 +2098,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   }}
                 >
                   <ComputerIcon sx={{ fontSize: 64, color: 'rgba(102, 126, 234, 0.3)', mb: 2 }} />
-                  <Typography variant="h6" sx={{ color: '#718096', fontWeight: 500 }}>
+                  <Typography variant="h6" sx={{ color: '#64748b', fontWeight: 500 }}>
                     {searchFilter ? 'No matching assignments found' : 'No assignments found'}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#a0aec0', mt: 1 }}>
@@ -1723,250 +2106,270 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   </Typography>
                 </Box>
               ) : viewMode === 'table' ? (
-                /* Table View */
-                <TableContainer
-                  component={Paper}
-                  elevation={0}
-                  sx={{
-                    maxHeight: '500px',
-                    bgcolor: 'rgba(255, 255, 255, 0.9)',
-                    borderRadius: 2,
-                    '&::-webkit-scrollbar': {
-                      width: '10px',
-                      height: '10px',
-                    },
-                    '&::-webkit-scrollbar-track': {
-                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                      borderRadius: '10px',
-                    },
-                    '&::-webkit-scrollbar-thumb': {
-                      backgroundColor: '#667eea',
-                      borderRadius: '10px',
-                    },
-                    '&::-webkit-scrollbar-thumb:hover': {
-                      backgroundColor: '#764ba2',
-                    },
-                  }}
-                >
-                  <Table stickyHeader>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ bgcolor: '#667eea', color: 'white', fontWeight: 600 }}>
-                          User
-                        </TableCell>
-                        <TableCell sx={{ bgcolor: '#667eea', color: 'white', fontWeight: 600 }}>
-                          <TableSortLabel
-                            active={orderBy === 'email'}
-                            direction={orderBy === 'email' ? order : 'asc'}
-                            onClick={() => handleRequestSort('email')}
-                            sx={{
-                              color: 'white !important',
-                              '& .MuiTableSortLabel-icon': {
-                                color: 'white !important'
-                              }
-                            }}
-                          >
-                            Email
-                          </TableSortLabel>
-                        </TableCell>
-                        <TableCell sx={{ bgcolor: '#667eea', color: 'white', fontWeight: 600 }}>
-                          <TableSortLabel
-                            active={orderBy === 'machine'}
-                            direction={orderBy === 'machine' ? order : 'asc'}
-                            onClick={() => handleRequestSort('machine')}
-                            sx={{
-                              color: 'white !important',
-                              '& .MuiTableSortLabel-icon': {
-                                color: 'white !important'
-                              }
-                            }}
-                          >
-                            Machine
-                          </TableSortLabel>
-                        </TableCell>
-                        <TableCell sx={{ bgcolor: '#667eea', color: 'white', fontWeight: 600 }}>
-                          Machine Details
-                        </TableCell>
-                        <TableCell sx={{ bgcolor: '#667eea', color: 'white', fontWeight: 600 }}>
-                          <TableSortLabel
-                            active={orderBy === 'date'}
-                            direction={orderBy === 'date' ? order : 'asc'}
-                            onClick={() => handleRequestSort('date')}
-                            sx={{
-                              color: 'white !important',
-                              '& .MuiTableSortLabel-icon': {
-                                color: 'white !important'
-                              }
-                            }}
-                          >
-                            Assigned Date
-                          </TableSortLabel>
-                        </TableCell>
-                        <TableCell sx={{ bgcolor: '#667eea', color: 'white', fontWeight: 600, textAlign: 'center' }}>
-                          Actions
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {filteredAndSortedAssignments.map((assignment, index) => {
-                        const user = usersList.find(u => u.email.toLowerCase() === assignment.email.toLowerCase());
-                        const machineInfo = machinesList.find(m => m.name === assignment.machine_name);
+                /* Table View with MUIDataTable */
+                <MUIDataTable
+                  title=""
+                  data={filteredAndSortedAssignments.map(assignment => {
+                    const user = usersList.find(u => u.email.toLowerCase() === assignment.email.toLowerCase());
+                    const machineInfo = machinesList.find(m => m.name === assignment.machine_name);
+                    const saltData = saltDataByMachine[assignment.machine_name.toLowerCase()];
 
-                        return (
-                          <TableRow
-                            key={index}
+                    return {
+                      ...assignment,
+                      user,
+                      machineInfo,
+                      saltData
+                    };
+                  })}
+                  columns={[
+                    {
+                      name: 'user',
+                      label: 'User',
+                      options: {
+                        filter: false,
+                        sort: false,
+                        customBodyRender: (user, tableMeta) => {
+                          const assignment = filteredAndSortedAssignments[tableMeta.rowIndex];
+                          return (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              {user ? (
+                                <Avatar
+                                  src={user.profilePicture}
+                                  alt={user.displayName || user.email}
+                                  sx={{
+                                    width: 36,
+                                    height: 36,
+                                    border: '2px solid #1e40af',
+                                    bgcolor: user.profilePicture ? 'transparent' : '#1e40af'
+                                  }}
+                                >
+                                  {!user.profilePicture && (user.firstName?.[0] || assignment.email[0]).toUpperCase()}
+                                </Avatar>
+                              ) : (
+                                <PersonIcon sx={{ color: '#1e40af', fontSize: 36 }} />
+                              )}
+                              {user?.displayName && (
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {user.displayName}
+                                </Typography>
+                              )}
+                            </Box>
+                          );
+                        }
+                      }
+                    },
+                    {
+                      name: 'email',
+                      label: 'Email',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => (
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {value}
+                          </Typography>
+                        )
+                      }
+                    },
+                    {
+                      name: 'machine_name',
+                      label: 'Machine',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => (
+                          <Chip
+                            label={value}
                             sx={{
-                              '&:hover': {
-                                bgcolor: 'rgba(102, 126, 234, 0.08)'
-                              },
-                              bgcolor: index % 2 === 0 ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.02)'
+                              bgcolor: '#1e40af',
+                              color: 'white',
+                              fontWeight: 600
                             }}
-                          >
-                            <TableCell>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                {user ? (
-                                  <Avatar
-                                    src={user.profilePicture}
-                                    alt={user.displayName || user.email}
+                          />
+                        )
+                      }
+                    },
+                    {
+                      name: 'machineInfo',
+                      label: 'Machine Details',
+                      options: {
+                        filter: false,
+                        sort: false,
+                        customBodyRender: (machineInfo, tableMeta) => {
+                          const assignment = filteredAndSortedAssignments[tableMeta.rowIndex];
+                          const saltData = saltDataByMachine[assignment.machine_name.toLowerCase()];
+
+                          if (!machineInfo) {
+                            return <Typography variant="caption" color="text.secondary">-</Typography>;
+                          }
+
+                          let gpuText = '';
+                          if (saltData && Array.isArray(saltData.nvidia) && saltData.nvidia.length > 0) {
+                            gpuText = saltData.nvidia.map(gpu => {
+                              if (typeof gpu === 'string') return gpu;
+                              if (typeof gpu === 'object' && gpu !== null) {
+                                return gpu.type || gpu.Type || '';
+                              }
+                              return '';
+                            }).filter(text => text && text !== 'null' && text !== 'undefined').join(', ');
+                          }
+
+                          return (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                                <Typography variant="caption" sx={{ color: '#64748b' }}>
+                                  {machineInfo.operatingSystem}
+                                </Typography>
+                                {machineInfo.dnInfo && machineInfo.dnInfo.location !== 'Unknown' && (
+                                  <Chip
+                                    size="small"
+                                    label={`📍 ${machineInfo.dnInfo.location}`}
                                     sx={{
-                                      width: 36,
-                                      height: 36,
-                                      border: '2px solid #667eea',
-                                      bgcolor: user.profilePicture ? 'transparent' : '#667eea'
+                                      bgcolor: 'rgba(67, 160, 71, 0.1)',
+                                      color: '#047857',
+                                      fontWeight: 600,
+                                      height: '20px',
+                                      fontSize: '0.65rem'
                                     }}
-                                  >
-                                    {!user.profilePicture && (user.firstName?.[0] || user.email[0]).toUpperCase()}
-                                  </Avatar>
-                                ) : (
-                                  <PersonIcon sx={{ color: '#667eea', fontSize: 36 }} />
+                                  />
                                 )}
-                                {user?.displayName && (
-                                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                    {user.displayName}
-                                  </Typography>
+                                {machineInfo.dnInfo && machineInfo.dnInfo.type !== 'Unknown' && (
+                                  <Chip
+                                    size="small"
+                                    label={machineInfo.dnInfo.type}
+                                    color={
+                                      machineInfo.dnInfo.type === 'SERVER' ? 'error' :
+                                      machineInfo.dnInfo.type === 'WORKSTATION' ? 'success' :
+                                      machineInfo.dnInfo.type === 'MAC' ? 'secondary' :
+                                      machineInfo.dnInfo.type === 'LINUX' ? 'warning' :
+                                      machineInfo.dnInfo.type === 'LAPTOP' ? 'info' :
+                                      'default'
+                                    }
+                                    sx={{
+                                      height: '20px',
+                                      fontSize: '0.65rem',
+                                      fontWeight: 600
+                                    }}
+                                  />
                                 )}
                               </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                {assignment.email}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={assignment.machine_name}
-                                sx={{
-                                  bgcolor: '#667eea',
-                                  color: 'white',
-                                  fontWeight: 600
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {machineInfo ? (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                                    <Typography variant="caption" sx={{ color: '#718096' }}>
-                                      {machineInfo.operatingSystem}
-                                    </Typography>
-                                    {machineInfo.dnInfo && machineInfo.dnInfo.location !== 'Unknown' && (
-                                      <Chip
-                                        size="small"
-                                        label={`📍 ${machineInfo.dnInfo.location}`}
-                                        sx={{
-                                          bgcolor: 'rgba(67, 160, 71, 0.1)',
-                                          color: '#43a047',
-                                          fontWeight: 600,
-                                          height: '20px',
-                                          fontSize: '0.65rem'
-                                        }}
-                                      />
-                                    )}
-                                    {machineInfo.dnInfo && machineInfo.dnInfo.type !== 'Unknown' && (
-                                      <Chip
-                                        size="small"
-                                        label={machineInfo.dnInfo.type}
-                                        color={
-                                          machineInfo.dnInfo.type === 'SERVER' ? 'error' :
-                                          machineInfo.dnInfo.type === 'WORKSTATION' ? 'success' :
-                                          machineInfo.dnInfo.type === 'MAC' ? 'secondary' :
-                                          machineInfo.dnInfo.type === 'LINUX' ? 'warning' :
-                                          machineInfo.dnInfo.type === 'LAPTOP' ? 'info' :
-                                          'default'
-                                        }
-                                        sx={{
-                                          height: '20px',
-                                          fontSize: '0.65rem',
-                                          fontWeight: 600
-                                        }}
-                                      />
-                                    )}
-                                  </Box>
-                                  {/* GPU Info */}
-                                  {(() => {
-                                    const saltData = saltDataByMachine[assignment.machine_name.toLowerCase()];
-                                    if (saltData && Array.isArray(saltData.nvidia) && saltData.nvidia.length > 0) {
-                                      const gpuText = saltData.nvidia.map(gpu => {
-                                        if (typeof gpu === 'string') return gpu;
-                                        if (typeof gpu === 'object' && gpu !== null) {
-                                          return gpu.type || gpu.Type || '';
-                                        }
-                                        return '';
-                                      }).filter(text => text && text !== 'null' && text !== 'undefined').join(', ');
-
-                                      if (gpuText) {
-                                        return (
-                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#718096', fontWeight: 500 }}>
-                                              GPU:
-                                            </Typography>
-                                            <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#f093fb' }}>
-                                              {gpuText}
-                                            </Typography>
-                                          </Box>
-                                        );
-                                      }
-                                    }
-                                    return null;
-                                  })()}
+                              {gpuText && (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Typography variant="caption" sx={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>
+                                    GPU:
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#0891b2' }}>
+                                    {gpuText}
+                                  </Typography>
                                 </Box>
-                              ) : (
-                                <Typography variant="caption" color="text.secondary">-</Typography>
                               )}
-                            </TableCell>
-                            <TableCell>
-                              {assignment.assigned_at ? (
-                                <Typography variant="body2" sx={{ color: '#718096' }}>
-                                  {new Date(assignment.assigned_at).toLocaleDateString()}
-                                </Typography>
-                              ) : (
-                                <Typography variant="caption" color="text.secondary">-</Typography>
+                            </Box>
+                          );
+                        }
+                      }
+                    },
+                    {
+                      name: 'assigned_at',
+                      label: 'Assigned Date',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => value ? (
+                          <Typography variant="body2" sx={{ color: '#64748b' }}>
+                            {new Date(value).toLocaleDateString()}
+                          </Typography>
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">-</Typography>
+                        )
+                      }
+                    },
+                    {
+                      name: 'actions',
+                      label: 'Actions',
+                      options: {
+                        filter: false,
+                        sort: false,
+                        customBodyRender: (value, tableMeta) => {
+                          const assignment = filteredAndSortedAssignments[tableMeta.rowIndex];
+                          return (
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                              {!assignment.released && (
+                                <Tooltip title="Release this assignment" arrow placement="top">
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => releaseAssignment(assignment.email, assignment.machine_name, assignment.permanent_assignment)}
+                                    sx={{
+                                      bgcolor: 'rgba(67, 160, 71, 0.1)',
+                                      color: '#047857',
+                                      transition: 'all 0.3s ease',
+                                      '&:hover': {
+                                        bgcolor: '#047857',
+                                        color: 'white',
+                                        transform: 'scale(1.1)'
+                                      }
+                                    }}
+                                  >
+                                    <ExitToAppIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
                               )}
-                            </TableCell>
-                            <TableCell align="center">
-                              <IconButton
-                                size="small"
-                                onClick={() => handleDeleteAssignment(assignment)}
-                                sx={{
-                                  bgcolor: 'rgba(245, 87, 108, 0.1)',
-                                  color: '#f5576c',
-                                  transition: 'all 0.3s ease',
-                                  '&:hover': {
-                                    bgcolor: '#f5576c',
-                                    color: 'white',
-                                    transform: 'scale(1.1)'
-                                  }
-                                }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                              <Tooltip title="Delete this assignment" arrow placement="top">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleDeleteAssignment(assignment)}
+                                  sx={{
+                                    bgcolor: 'rgba(245, 87, 108, 0.1)',
+                                    color: '#dc2626',
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                      bgcolor: '#dc2626',
+                                      color: 'white',
+                                      transform: 'scale(1.1)'
+                                    }
+                                  }}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          );
+                        }
+                      }
+                    }
+                  ]}
+                  options={{
+                    filterType: 'dropdown',
+                    responsive: 'standard',
+                    selectableRows: 'none',
+                    download: true,
+                    print: false,
+                    viewColumns: true,
+                    pagination: true,
+                    rowsPerPage: 10,
+                    rowsPerPageOptions: [5, 10, 25, 50, 100],
+                    elevation: 0,
+                    searchOpen: false,
+                    searchPlaceholder: 'Search assignments...',
+                    textLabels: {
+                      body: {
+                        noMatch: searchFilter ? 'No matching assignments found' : 'No assignments found',
+                      }
+                    },
+                    setTableProps: () => ({
+                      sx: {
+                        bgcolor: 'rgba(255, 255, 255, 0.9)',
+                      }
+                    }),
+                    setRowProps: (row, dataIndex) => ({
+                      sx: {
+                        '&:hover': {
+                          bgcolor: 'rgba(102, 126, 234, 0.08)'
+                        },
+                        bgcolor: dataIndex % 2 === 0 ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.02)'
+                      }
+                    })
+                  }}
+                />
               ) : (
                 /* Card View - Dense Multi-Column Grid */
                 <Box
@@ -1982,11 +2385,11 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                       borderRadius: '10px',
                     },
                     '&::-webkit-scrollbar-thumb': {
-                      backgroundColor: '#667eea',
+                      backgroundColor: '#1e40af',
                       borderRadius: '10px',
                     },
                     '&::-webkit-scrollbar-thumb:hover': {
-                      backgroundColor: '#764ba2',
+                      backgroundColor: '#1e3a8a',
                     },
                   }}
                 >
@@ -2060,77 +2463,105 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                 left: 0,
                                 right: 0,
                                 height: '4px',
-                                background: index % 4 === 0 ? '#667eea' :
-                                           index % 4 === 1 ? '#f093fb' :
-                                           index % 4 === 2 ? '#43a047' :
-                                           '#f5576c'
+                                background: index % 4 === 0 ? '#1e40af' :
+                                           index % 4 === 1 ? '#0891b2' :
+                                           index % 4 === 2 ? '#047857' :
+                                           '#dc2626'
                               }
                             }}
                           >
-                            <CardContent sx={{ p: 2, pb: 1.5, '&:last-child': { pb: 1.5 } }}>
-                              {/* User Section */}
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                                {user ? (
-                                  <Avatar
-                                    src={user.profilePicture}
-                                    alt={user.displayName || user.email}
-                                    sx={{
-                                      width: 32,
-                                      height: 32,
-                                      border: '2px solid #667eea',
-                                      bgcolor: user.profilePicture ? 'transparent' : '#667eea',
-                                      fontSize: '0.75rem'
-                                    }}
-                                  >
-                                    {!user.profilePicture && (user.firstName?.[0] || user.email[0]).toUpperCase()}
-                                  </Avatar>
-                                ) : (
-                                  <PersonIcon sx={{ color: '#667eea', fontSize: 32 }} />
-                                )}
-                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                  {user?.displayName && (
-                                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#2d3748', display: 'block', lineHeight: 1.2 }}>
-                                      {user.displayName}
-                                    </Typography>
+                            <CardContent sx={{
+                              p: 0,
+                              '&:last-child': { pb: 0 },
+                              display: 'flex',
+                              flexDirection: 'column',
+                              height: '100%'
+                            }}>
+                              {/* Modern Header Section with Gradient */}
+                              <Box sx={{
+                                background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
+                                p: 2,
+                                pb: 1.5
+                              }}>
+                                {/* User Name - Prominent */}
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                  {user ? (
+                                    <Avatar
+                                      src={user.profilePicture}
+                                      alt={user.displayName || user.email}
+                                      sx={{
+                                        width: 36,
+                                        height: 36,
+                                        border: '2px solid white',
+                                        bgcolor: user.profilePicture ? 'transparent' : 'rgba(255, 255, 255, 0.2)',
+                                        fontSize: '0.875rem',
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                                      }}
+                                    >
+                                      {!user.profilePicture && (user.firstName?.[0] || user.email[0]).toUpperCase()}
+                                    </Avatar>
+                                  ) : (
+                                    <PersonIcon sx={{ color: 'white', fontSize: 36 }} />
                                   )}
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography
+                                      variant="subtitle2"
+                                      sx={{
+                                        fontWeight: 700,
+                                        color: 'white',
+                                        display: 'block',
+                                        lineHeight: 1.3,
+                                        fontSize: '0.95rem',
+                                        textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                      }}
+                                    >
+                                      {user?.displayName || assignment.email.split('@')[0]}
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        color: 'rgba(255, 255, 255, 0.9)',
+                                        display: 'block',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        fontSize: '0.7rem',
+                                        opacity: 0.9
+                                      }}
+                                    >
+                                      {assignment.email}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+
+                                {/* Machine Name - Prominent with Icon */}
+                                <Box sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                  bgcolor: 'rgba(255, 255, 255, 0.15)',
+                                  borderRadius: 1.5,
+                                  p: 1,
+                                  backdropFilter: 'blur(10px)'
+                                }}>
+                                  <ComputerIcon sx={{ color: 'white', fontSize: 20 }} />
                                   <Typography
-                                    variant="caption"
+                                    variant="body2"
                                     sx={{
-                                      color: '#718096',
-                                      display: 'block',
-                                      overflow: 'hidden',
-                                      textOverflow: 'ellipsis',
-                                      whiteSpace: 'nowrap',
-                                      fontSize: '0.7rem'
+                                      color: 'white',
+                                      fontWeight: 700,
+                                      fontSize: '0.85rem',
+                                      letterSpacing: '0.3px',
+                                      textShadow: '0 1px 2px rgba(0,0,0,0.1)'
                                     }}
                                   >
-                                    {assignment.email}
+                                    {assignment.machine_name}
                                   </Typography>
                                 </Box>
                               </Box>
 
-                              {/* Machine Section */}
-                              <Box sx={{ mb: 1.5 }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                                  <ComputerIcon sx={{ color: '#43a047', fontSize: 16 }} />
-                                  <Typography variant="caption" sx={{ color: '#718096', fontWeight: 500 }}>
-                                    Machine
-                                  </Typography>
-                                </Box>
-                                <Chip
-                                  label={assignment.machine_name}
-                                  size="small"
-                                  sx={{
-                                    bgcolor: '#667eea',
-                                    color: 'white',
-                                    fontWeight: 600,
-                                    height: '24px',
-                                    fontSize: '0.7rem',
-                                    width: '100%',
-                                    justifyContent: 'flex-start',
-                                    mb: 0.5
-                                  }}
-                                />
+                              {/* Content Section */}
+                              <Box sx={{ p: 2, pt: 1.5 }}>
 
                                 {/* Parsec Username - Prominently displayed */}
                                 {(() => {
@@ -2140,10 +2571,10 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                   if (parsecUsername && parsecUsername !== 'N/A') {
                                     return (
                                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, mb: 0.5 }}>
-                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: '#718096', fontWeight: 500 }}>
+                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>
                                           Parsec User:
                                         </Typography>
-                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#667eea' }}>
+                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#1e40af' }}>
                                           {parsecUsername}
                                         </Typography>
                                       </Box>
@@ -2157,20 +2588,20 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
                                     {cpuInfo !== 'N/A' && (
                                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: '#718096', fontWeight: 500 }}>
+                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>
                                           CPU:
                                         </Typography>
-                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#667eea' }}>
+                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#1e40af' }}>
                                           {cpuInfo}
                                         </Typography>
                                       </Box>
                                     )}
                                     {gpuInfo !== 'N/A' && (
                                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: '#718096', fontWeight: 500 }}>
+                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>
                                           GPU:
                                         </Typography>
-                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#f093fb' }}>
+                                        <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#0891b2' }}>
                                           {gpuInfo}
                                         </Typography>
                                       </Box>
@@ -2182,12 +2613,12 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                               {/* Machine Details */}
                               {machineInfo && (
                                 <Box sx={{ mb: 1.5 }}>
-                                  <Typography variant="caption" sx={{ color: '#718096', fontWeight: 500, display: 'block', mb: 0.5, fontSize: '0.65rem' }}>
+                                  {/* <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, display: 'block', mb: 0.5, fontSize: '0.65rem' }}>
                                     DETAILS
-                                  </Typography>
+                                  </Typography> */}
                                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                                     <Typography variant="caption" sx={{ color: '#2d3748', fontSize: '0.65rem', lineHeight: 1.3 }}>
-                                      OS: {machineInfo.operatingSystem.length > 25
+                                      &nbsp;OS: {machineInfo.operatingSystem.length > 25
                                         ? machineInfo.operatingSystem.substring(0, 25) + '...'
                                         : machineInfo.operatingSystem}
                                     </Typography>
@@ -2199,7 +2630,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                           icon={<Typography sx={{ fontSize: '0.65rem' }}>📍</Typography>}
                                           sx={{
                                             bgcolor: 'rgba(67, 160, 71, 0.1)',
-                                            color: '#43a047',
+                                            color: '#047857',
                                             fontWeight: 600,
                                             height: '18px',
                                             fontSize: '0.6rem',
@@ -2240,39 +2671,490 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
                                 pt: 1,
+                                mt: 'auto',
                                 borderTop: '1px solid rgba(0, 0, 0, 0.08)'
                               }}>
                                 {assignment.assigned_at ? (
-                                  <Typography variant="caption" sx={{ color: '#718096', fontSize: '0.65rem' }}>
+                                  <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.65rem' }}>&nbsp; Assigned: 
                                     {new Date(assignment.assigned_at).toLocaleDateString()}
                                   </Typography>
                                 ) : (
                                   <Box />
                                 )}
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleDeleteAssignment(assignment)}
-                                  sx={{
-                                    bgcolor: 'rgba(245, 87, 108, 0.1)',
-                                    color: '#f5576c',
-                                    width: 28,
-                                    height: 28,
-                                    transition: 'all 0.3s ease',
-                                    '&:hover': {
-                                      bgcolor: '#f5576c',
-                                      color: 'white',
-                                      transform: 'scale(1.1)'
-                                    }
-                                  }}
-                                >
-                                  <DeleteIcon sx={{ fontSize: 16 }} />
-                                </IconButton>
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                  {!assignment.released && (
+                                    <Tooltip title="Release this assignment" arrow placement="top">
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => releaseAssignment(assignment.email, assignment.machine_name)}
+                                        sx={{
+                                          bgcolor: 'rgba(67, 160, 71, 0.1)',
+                                          color: '#047857',
+                                          width: 28,
+                                          height: 28,
+                                          transition: 'all 0.3s ease',
+                                          '&:hover': {
+                                            bgcolor: '#047857',
+                                            color: 'white',
+                                            transform: 'scale(1.1)'
+                                          }
+                                        }}
+                                      >
+                                        <ExitToAppIcon sx={{ fontSize: 16 }} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  )}
+                                  {/* <Tooltip title="Delete this assignment" arrow placement="top">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleDeleteAssignment(assignment)}
+                                    >
+                                    </IconButton>
+                                  </Tooltip> */}
+                                </Box>
                               </Box>
                             </CardContent>
                           </Card>
                         </Grid>
                       );
                     })}
+                  </Grid>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* All Parsec Assignments List */}
+        <Grid size={12}>
+          <Card
+            sx={{
+              background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+              borderRadius: 3,
+              overflow: 'visible',
+              position: 'relative',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '4px',
+                background: 'linear-gradient(90deg, #1e40af 0%, #1e3a8a 100%)',
+                borderRadius: '12px 12px 0 0'
+              }
+            }}
+          >
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#2d3748', letterSpacing: '-0.5px' }}>
+                    All Parsec Assignments
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                    Complete overview of Parsec host assignments
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <TextField
+                    placeholder="Search parsec assignments..."
+                    variant="outlined"
+                    size="small"
+                    value={parsecSearchFilter}
+                    onChange={(e) => setParsecSearchFilter(e.target.value)}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ color: '#1e40af' }} />
+                        </InputAdornment>
+                      )
+                    }}
+                    sx={{
+                      width: '300px',
+                      '& .MuiOutlinedInput-root': {
+                        bgcolor: 'rgba(255, 255, 255, 0.9)',
+                        '& fieldset': {
+                          borderColor: 'rgba(102, 126, 234, 0.2)',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: 'rgba(102, 126, 234, 0.4)',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: '#1e40af',
+                        }
+                      }
+                    }}
+                  />
+                  <ToggleButtonGroup
+                    value={parsecViewMode}
+                    exclusive
+                    onChange={(_, newMode) => newMode && setParsecViewMode(newMode)}
+                    sx={{
+                      bgcolor: 'rgba(255, 255, 255, 0.9)',
+                      '& .MuiToggleButton-root': {
+                        color: '#1e40af',
+                        borderColor: 'rgba(102, 126, 234, 0.2)',
+                        '&.Mui-selected': {
+                          bgcolor: '#1e40af',
+                          color: 'white',
+                          '&:hover': {
+                            bgcolor: '#1e3a8a'
+                          }
+                        }
+                      }
+                    }}
+                  >
+                    <ToggleButton value="card" aria-label="card view">
+                      <ViewListIcon sx={{ mr: 1 }} />
+                      Card
+                    </ToggleButton>
+                    <ToggleButton value="table" aria-label="table view">
+                      <TableViewIcon sx={{ mr: 1 }} />
+                      Table
+                    </ToggleButton>
+                  </ToggleButtonGroup>
+                  <Button
+                    variant="contained"
+                    startIcon={<RefreshIcon />}
+                    onClick={() => queries.parsecReport.refetch()}
+                    disabled={queries.parsecReport.isRefetching}
+                    sx={{
+                      background: 'linear-gradient(135deg, #047857 0%, #059669 100%)',
+                      color: 'white',
+                      fontWeight: 600,
+                      px: 3,
+                      py: 1,
+                      boxShadow: '0 4px 12px rgba(67, 160, 71, 0.3)',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                        boxShadow: '0 6px 16px rgba(67, 160, 71, 0.4)',
+                        transform: 'translateY(-2px)'
+                      },
+                      '&:disabled': {
+                        background: 'rgba(0, 0, 0, 0.12)',
+                        color: 'rgba(0, 0, 0, 0.26)'
+                      }
+                    }}
+                  >
+                    {queries.parsecReport.isRefetching ? 'Refreshing...' : 'Refresh'}
+                  </Button>
+                </Box>
+              </Box>
+
+              {queries.parsecReport.isLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                  <CircularProgress sx={{ color: '#1e40af' }} />
+                  <Typography variant="body1" sx={{ ml: 2, color: '#64748b' }}>
+                    Loading Parsec assignments...
+                  </Typography>
+                </Box>
+              ) : queries.parsecReport.error ? (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  Error loading Parsec assignments: {queries.parsecReport.error.message}
+                </Alert>
+              ) : filteredAndSortedParsecAssignments.length === 0 ? (
+                <Box
+                  sx={{
+                    p: 6,
+                    textAlign: 'center',
+                    bgcolor: 'rgba(255, 255, 255, 0.7)',
+                    borderRadius: 2,
+                    border: '2px dashed rgba(148, 163, 184, 0.3)'
+                  }}
+                >
+                  <StorageIcon sx={{ fontSize: 64, color: 'rgba(148, 163, 184, 0.3)', mb: 2 }} />
+                  <Typography variant="h6" sx={{ color: '#64748b', fontWeight: 500 }}>
+                    {parsecSearchFilter ? 'No matching parsec assignments found' : 'No parsec assignments found'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#a0aec0', mt: 1 }}>
+                    {parsecSearchFilter ? 'Try a different search term' : 'Create your first parsec assignment above'}
+                  </Typography>
+                </Box>
+              ) : parsecViewMode === 'table' ? (
+                /* Table View with MUIDataTable */
+                <MUIDataTable
+                  title=""
+                  data={filteredAndSortedParsecAssignments}
+                  columns={[
+                    {
+                      name: 'host',
+                      label: 'Host',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <StorageIcon sx={{ color: '#1e40af', fontSize: 18 }} />
+                            {value || 'Unknown'}
+                          </Box>
+                        )
+                      }
+                    },
+                    {
+                      name: 'name',
+                      label: 'User Name',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => value || 'Unknown'
+                      }
+                    },
+                    {
+                      name: 'email',
+                      label: 'Email',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => value || 'N/A'
+                      }
+                    },
+                    {
+                      name: 'machine_online',
+                      label: 'Status',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => (
+                          <Chip
+                            label={value === 'online' ? 'Online' : 'Offline'}
+                            size="small"
+                            color={value === 'online' ? 'success' : 'default'}
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        )
+                      }
+                    },
+                    {
+                      name: 'guests',
+                      label: 'Guests',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => value ? (
+                          <Chip
+                            label="Yes"
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        ) : (
+                          <Chip
+                            label="No"
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        )
+                      }
+                    },
+                    {
+                      name: 'last_connected',
+                      label: 'Last Connected',
+                      options: {
+                        filter: true,
+                        sort: true,
+                        customBodyRender: (value) => value ? new Date(value).toLocaleString() : 'Never'
+                      }
+                    }
+                  ]}
+                  options={{
+                    filterType: 'dropdown',
+                    responsive: 'standard',
+                    selectableRows: 'none',
+                    download: true,
+                    print: false,
+                    viewColumns: true,
+                    pagination: true,
+                    rowsPerPage: 10,
+                    rowsPerPageOptions: [5, 10, 25, 50, 100],
+                    elevation: 0,
+                    searchOpen: false,
+                    searchPlaceholder: 'Search assignments...',
+                    textLabels: {
+                      body: {
+                        noMatch: parsecSearchFilter ? 'No matching parsec assignments found' : 'No parsec assignments found',
+                      }
+                    },
+                    setTableProps: () => ({
+                      sx: {
+                        bgcolor: 'rgba(255, 255, 255, 0.9)',
+                      }
+                    }),
+                    setRowProps: () => ({
+                      sx: {
+                        '&:hover': {
+                          bgcolor: 'rgba(248, 250, 252, 0.5)'
+                        }
+                      }
+                    })
+                  }}
+                />
+              ) : (
+                /* Card View */
+                <Box
+                  sx={{
+                    maxHeight: '500px',
+                    overflow: 'auto',
+                    bgcolor: 'transparent',
+                    '&::-webkit-scrollbar': {
+                      width: '10px',
+                    },
+                    '&::-webkit-scrollbar-track': {
+                      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                      borderRadius: '10px',
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                      backgroundColor: '#1e40af',
+                      borderRadius: '10px',
+                    },
+                    '&::-webkit-scrollbar-thumb:hover': {
+                      backgroundColor: '#1e3a8a',
+                    },
+                  }}
+                >
+                  <Typography variant="body2" sx={{ color: '#64748b', mb: 2 }}>
+                    Showing {filteredAndSortedParsecAssignments.length} Parsec host assignments
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {filteredAndSortedParsecAssignments.map((item, index) => (
+                      <Grid size={3} key={index}>
+                        <Card
+                          sx={{
+                            height: '100%',
+                            bgcolor: 'white',
+                            borderRadius: 2,
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+                            overflow: 'hidden',
+                            transition: 'all 0.3s ease',
+                            position: 'relative',
+                            '&:hover': {
+                              boxShadow: '0 6px 20px rgba(203, 213, 225, 0.5)',
+                              transform: 'translateY(-4px)'
+                            },
+                            '&::before': {
+                              content: '""',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: '4px',
+                              background: '#1e40af'
+                            }
+                          }}
+                        >
+                          <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
+                            {/* Modern Header Section with Navy Blue Gradient */}
+                            <Box sx={{
+                              background: 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
+                              p: 2,
+                              pb: 1.5
+                            }}>
+                              {/* User Name - Prominent */}
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <Avatar
+                                  sx={{
+                                    width: 36,
+                                    height: 36,
+                                    border: '2px solid white',
+                                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                                    color: 'white',
+                                    fontSize: '0.875rem',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                                  }}
+                                >
+                                  {item.name ? item.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : item.email?.[0]?.toUpperCase() || 'U'}
+                                </Avatar>
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                  <Typography
+                                    variant="subtitle2"
+                                    sx={{
+                                      fontWeight: 700,
+                                      color: 'white',
+                                      display: 'block',
+                                      lineHeight: 1.3,
+                                      fontSize: '0.95rem',
+                                      textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                    }}
+                                  >
+                                    {item.name || item.email?.split('@')[0] || 'Unknown User'}
+                                  </Typography>
+                                  {item.email && (
+                                    <Typography
+                                      variant="caption"
+                                      sx={{
+                                        color: 'rgba(255, 255, 255, 0.9)',
+                                        display: 'block',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        fontSize: '0.7rem',
+                                        opacity: 0.9
+                                      }}
+                                    >
+                                      {item.email}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
+
+                              {/* Host Name - Prominent with Icon */}
+                              <Box sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                bgcolor: 'rgba(255, 255, 255, 0.15)',
+                                borderRadius: 1.5,
+                                p: 1,
+                                backdropFilter: 'blur(10px)'
+                              }}>
+                                <StorageIcon sx={{ color: 'white', fontSize: 20 }} />
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: 'white',
+                                    fontWeight: 700,
+                                    fontSize: '0.85rem',
+                                    letterSpacing: '0.3px',
+                                    textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                  }}
+                                >
+                                  {item.host || 'Unknown Host'}
+                                </Typography>
+                              </Box>
+                            </Box>
+
+                            {/* Content Section */}
+                            <Box sx={{ p: 2, pt: 1.5 }}>
+                              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
+                                <Chip
+                                  label={item.machine_online === 'online' ? 'Online' : 'Offline'}
+                                  size="small"
+                                  color={item.machine_online === 'online' ? 'success' : 'default'}
+                                  sx={{ fontSize: '0.7rem', fontWeight: 600 }}
+                                />
+                                {item.guests && (
+                                  <Chip
+                                    label="Guests Allowed"
+                                    size="small"
+                                    color="info"
+                                    variant="outlined"
+                                    sx={{ fontSize: '0.7rem', fontWeight: 600 }}
+                                  />
+                                )}
+                              </Box>
+                              {item.last_connected && (
+                                <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                                  Last Connected: {new Date(item.last_connected).toLocaleString()}
+                                </Typography>
+                              )}
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
                   </Grid>
                 </Box>
               )}

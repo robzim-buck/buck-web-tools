@@ -2,16 +2,16 @@ import { Alert, Box, LinearProgress, Typography, Collapse, IconButton, Chip } fr
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAppData } from '../contexts/AppDataProvider';
 
 export default function DataLoadingStatus() {
-  const { queries } = useAppData();
-  const [showAlert, setShowAlert] = useState(true);
+  const { queries, enabledQueries } = useAppData();
+  const [showAlert, setShowAlert] = useState(false);
   const [hasShownOnce, setHasShownOnce] = useState(false);
 
-  // Define data sources to monitor
-  const dataSources = [
+  // Define all possible data sources
+  const allDataSources = [
     { key: 'googleStaff', label: 'Google Staff Users', query: queries.googleStaff },
     { key: 'googleFreelance', label: 'Google Freelance Users', query: queries.googleFreelance },
     { key: 'oktaUsers', label: 'Okta Users', query: queries.oktaUsers },
@@ -27,6 +27,11 @@ export default function DataLoadingStatus() {
     { key: 'slackUsers', label: 'Slack Users', query: queries.slackUsers },
   ];
 
+  // Only show data sources that have been requested (enabled)
+  const dataSources = useMemo(() => {
+    return allDataSources.filter(source => enabledQueries[source.key]);
+  }, [enabledQueries, queries]);
+
   // Calculate loading statistics
   const totalSources = dataSources.length;
   const loadedCount = dataSources.filter(source => !source.query.isLoading && !source.query.error).length;
@@ -35,9 +40,16 @@ export default function DataLoadingStatus() {
   const isFullyLoaded = loadedCount === totalSources;
   const progress = (loadedCount / totalSources) * 100;
 
+  // Show alert when data starts loading
+  useEffect(() => {
+    if (loadingCount > 0 && totalSources > 0) {
+      setShowAlert(true);
+    }
+  }, [loadingCount, totalSources]);
+
   // Auto-hide after all data is loaded
   useEffect(() => {
-    if (isFullyLoaded && !hasShownOnce) {
+    if (isFullyLoaded && totalSources > 0 && !hasShownOnce) {
       setHasShownOnce(true);
       // Auto-hide after 3 seconds when fully loaded
       const timer = setTimeout(() => {
@@ -45,14 +57,20 @@ export default function DataLoadingStatus() {
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [isFullyLoaded, hasShownOnce]);
+  }, [isFullyLoaded, hasShownOnce, totalSources]);
 
-  // Reset when data starts loading again
+  // Reset when new data starts loading
   useEffect(() => {
     if (loadingCount > 0 && hasShownOnce) {
       setShowAlert(true);
+      setHasShownOnce(false);
     }
-  }, [loadingCount, hasShownOnce]);
+  }, [loadingCount]);
+
+  // Don't render if no data sources are enabled
+  if (totalSources === 0) {
+    return null;
+  }
 
   return (
     <Collapse in={showAlert}>

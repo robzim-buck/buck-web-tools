@@ -1,25 +1,36 @@
 import {
   Chip, Typography, Box, Container, Grid, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, IconButton, Collapse, Tooltip, Card
+  Paper, Tooltip, Card, Button, Dialog, DialogTitle, DialogContent, DialogActions,
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import DnsIcon from '@mui/icons-material/Dns';
-import StorageIcon from '@mui/icons-material/Storage';
+import InfoIcon from '@mui/icons-material/Info';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import ViewListIcon from '@mui/icons-material/ViewList';
 import { useState } from 'react';
 import { useQueries } from "@tanstack/react-query";
 import CircularProgress from '@mui/material/CircularProgress';
 
 export default function HammerSpaceNodes(props) {
-    const [expanded, setExpanded] = useState({});
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [selectedNode, setSelectedNode] = useState(null);
+    const [viewMode, setViewMode] = useState('simple');
 
-    // Toggle expansion state for a specific node
-    const handleToggle = (nodeId) => {
-        setExpanded(prev => ({
-            ...prev,
-            [nodeId]: !prev[nodeId]
-        }));
+    const handleOpenDetails = (node) => {
+        setSelectedNode(node);
+        setDetailsOpen(true);
+    };
+
+    const handleCloseDetails = () => {
+        setDetailsOpen(false);
+        setSelectedNode(null);
+    };
+
+    const handleViewModeChange = (event, newMode) => {
+        if (newMode !== null) {
+            setViewMode(newMode);
+        }
     };
 
     const [hammerspaceNodes] = useQueries({
@@ -27,7 +38,7 @@ export default function HammerSpaceNodes(props) {
           {
             queryKey: ["hammerspaceNodes"],
             queryFn: async () => {
-                const response = await fetch("https://laxcoresrv.buck.local:8000/hammerspace?item=nodes", {
+                const response = await fetch("https://laxcoresrv.buck.local:8000/hammerspace/from_all_nodes?item=nodes", {
                     method: "GET",
                     mode: "cors",
                     headers: {
@@ -73,6 +84,13 @@ export default function HammerSpaceNodes(props) {
         // Check if data is wrapped in a 'results' field
         const rawData = hammerspaceNodes.data.results || hammerspaceNodes.data;
         const dataArray = Array.isArray(rawData) ? rawData : [];
+
+        // Log first item keys to see field names
+        if (dataArray.length > 0) {
+            console.log('First node keys:', Object.keys(dataArray[0]));
+            console.log('First node sample:', dataArray[0]);
+        }
+
         const sortedData = dataArray.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         if (!sortedData || sortedData.length === 0) {
@@ -84,20 +102,20 @@ export default function HammerSpaceNodes(props) {
         }
 
         // Calculate statistics
-        const nodeStates = [...new Set(sortedData.map(node => node.state).filter(Boolean))];
-        const activeNodes = sortedData.filter(node =>
-            node.state && node.state.toLowerCase().includes('active')
+        const nodeStates = [...new Set(sortedData.map(node => node.hwComponentState).filter(Boolean))];
+        const healthyNodes = sortedData.filter(node =>
+            node.hwComponentState && node.hwComponentState.toLowerCase() === 'ok'
         ).length;
-        const onlineNodes = sortedData.filter(node =>
-            node.state && (node.state.toLowerCase().includes('online') || node.state.toLowerCase().includes('active'))
+        const managedNodes = sortedData.filter(node =>
+            node.nodeState && node.nodeState.toLowerCase() === 'managed'
         ).length;
 
-        // Determine status color based on node state
+        // Determine status color based on HW component state
         const getStatusColor = (state) => {
             const stateLower = state ? state.toLowerCase() : '';
-            if (stateLower.includes('active') || stateLower.includes('online')) return '#4caf50';
-            if (stateLower.includes('warn') || stateLower.includes('partial')) return '#ff9800';
-            if (stateLower.includes('error') || stateLower.includes('offline')) return '#f44336';
+            if (stateLower === 'ok' || stateLower === 'healthy') return '#4caf50';
+            if (stateLower.includes('warn') || stateLower.includes('degraded')) return '#ff9800';
+            if (stateLower.includes('error') || stateLower.includes('fail')) return '#f44336';
             return '#2196f3'; // default blue
         };
 
@@ -107,12 +125,31 @@ export default function HammerSpaceNodes(props) {
                     <Typography variant='h4' color="primary" fontWeight="medium">
                         {props.name || 'Hammerspace Nodes'}
                     </Typography>
-                    <Chip
-                        label={`${sortedData.length} Nodes`}
-                        color="primary"
-                        variant="outlined"
-                        sx={{ fontWeight: 'bold' }}
-                    />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <ToggleButtonGroup
+                            value={viewMode}
+                            exclusive
+                            onChange={handleViewModeChange}
+                            size="small"
+                        >
+                            <ToggleButton value="simple">
+                                <Tooltip title="Simple View">
+                                    <ViewListIcon />
+                                </Tooltip>
+                            </ToggleButton>
+                            <ToggleButton value="detailed">
+                                <Tooltip title="Detailed View">
+                                    <TableChartIcon />
+                                </Tooltip>
+                            </ToggleButton>
+                        </ToggleButtonGroup>
+                        <Chip
+                            label={`${sortedData.length} Nodes`}
+                            color="primary"
+                            variant="outlined"
+                            sx={{ fontWeight: 'bold' }}
+                        />
+                    </Box>
                 </Box>
 
                 {/* Summary Statistics */}
@@ -131,10 +168,10 @@ export default function HammerSpaceNodes(props) {
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light', color: 'success.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                                {onlineNodes}
+                                {healthyNodes}
                             </Typography>
                             <Typography variant="body2">
-                                Online Nodes
+                                Healthy (OK)
                             </Typography>
                         </Card>
                     </Grid>
@@ -142,10 +179,10 @@ export default function HammerSpaceNodes(props) {
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', color: 'info.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                                {activeNodes}
+                                {managedNodes}
                             </Typography>
                             <Typography variant="body2">
-                                Active Nodes
+                                Managed
                             </Typography>
                         </Card>
                     </Grid>
@@ -156,170 +193,324 @@ export default function HammerSpaceNodes(props) {
                                 {nodeStates.length}
                             </Typography>
                             <Typography variant="body2">
-                                Unique States
+                                HW States
                             </Typography>
                         </Card>
                     </Grid>
                 </Grid>
 
-                <TableContainer component={Paper} sx={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-                    <Table sx={{ minWidth: 650 }} size="small">
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: 'primary.main' }}>
-                                <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold', width: '40px' }}>
-                                    {/* Expand column */}
-                                </TableCell>
-                                <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <DnsIcon fontSize="small" />
-                                        Name
-                                    </Box>
-                                </TableCell>
-                                <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
-                                    UUID
-                                </TableCell>
-                                <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
-                                    State
-                                </TableCell>
-                                <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <StorageIcon fontSize="small" />
-                                        Type
-                                    </Box>
-                                </TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {sortedData.map((nodeItem) => {
-                                const statusColor = getStatusColor(nodeItem.state);
-                                const nodeKey = nodeItem.name || nodeItem.uuid || nodeItem.id;
-                                const isOnline = nodeItem.state &&
-                                    (nodeItem.state.toLowerCase().includes('active') ||
-                                     nodeItem.state.toLowerCase().includes('online'));
+                {/* Simple View Table */}
+                {viewMode === 'simple' && (
+                    <TableContainer component={Paper} sx={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                        <Table sx={{ minWidth: 650 }} size="small">
+                            <TableHead>
+                                <TableRow sx={{ bgcolor: 'primary.main' }}>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <DnsIcon fontSize="small" />
+                                            Name
+                                        </Box>
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        HW State
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        Node Type
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        Actions
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {sortedData.map((nodeItem) => {
+                                    const hwState = nodeItem.hwComponentState || '';
+                                    const statusColor = getStatusColor(hwState);
+                                    const nodeKey = nodeItem.uoid?.uuid || nodeItem.name || nodeItem.id;
+                                    const isHealthy = hwState && hwState.toLowerCase() === 'ok';
 
-                                return (
-                                    <>
+                                    return (
                                         <TableRow
                                             key={nodeKey}
                                             sx={{
                                                 '&:nth-of-type(odd)': { bgcolor: 'action.hover' },
                                                 '&:hover': { bgcolor: 'action.selected' },
-                                                borderLeft: `4px solid ${statusColor}`,
-                                                cursor: 'pointer'
+                                                borderLeft: `4px solid ${statusColor}`
                                             }}
-                                            onClick={() => handleToggle(nodeKey)}
                                         >
-                                            <TableCell>
-                                                <IconButton size="small">
-                                                    {expanded[nodeKey] ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                                                </IconButton>
-                                            </TableCell>
                                             <TableCell>
                                                 <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
                                                     {nodeItem.name}
                                                 </Typography>
                                             </TableCell>
                                             <TableCell>
-                                                <Tooltip title={nodeItem.uuid}>
-                                                    <Typography variant="body2" noWrap sx={{ maxWidth: '200px', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                                                        {nodeItem.uuid}
-                                                    </Typography>
-                                                </Tooltip>
-                                            </TableCell>
-                                            <TableCell>
                                                 <Chip
                                                     variant="filled"
-                                                    color={isOnline ? "success" : "default"}
+                                                    color={isHealthy ? "success" : "default"}
                                                     size="small"
-                                                    label={nodeItem.state}
+                                                    label={hwState || '-'}
                                                 />
                                             </TableCell>
                                             <TableCell>
                                                 <Typography variant="body2">
-                                                    {nodeItem.type || '-'}
+                                                    {nodeItem.nodeType || '-'}
                                                 </Typography>
                                             </TableCell>
-                                        </TableRow>
-
-                                        {/* Collapsible Details Row */}
-                                        <TableRow>
-                                            <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={5}>
-                                                <Collapse in={expanded[nodeKey]} timeout="auto" unmountOnExit>
-                                                    <Box sx={{ margin: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                                                        <Grid container spacing={3}>
-                                                            <Grid size={{ xs: 12, md: 6 }}>
-                                                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                                                    Node Name
-                                                                </Typography>
-                                                                <Typography variant="body2">
-                                                                    {nodeItem.name}
-                                                                </Typography>
-                                                            </Grid>
-
-                                                            <Grid size={{ xs: 12, md: 6 }}>
-                                                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                                                    UUID
-                                                                </Typography>
-                                                                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                                                                    {nodeItem.uuid}
-                                                                </Typography>
-                                                            </Grid>
-
-                                                            <Grid size={{ xs: 12, md: 6 }}>
-                                                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                                                    State
-                                                                </Typography>
-                                                                <Typography variant="body2">
-                                                                    {nodeItem.state}
-                                                                </Typography>
-                                                            </Grid>
-
-                                                            <Grid size={{ xs: 12, md: 6 }}>
-                                                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                                                    Type
-                                                                </Typography>
-                                                                <Typography variant="body2">
-                                                                    {nodeItem.type || 'N/A'}
-                                                                </Typography>
-                                                            </Grid>
-
-                                                            {/* Raw Data */}
-                                                            {Object.keys(nodeItem).length > 4 && (
-                                                                <Grid size={{ xs: 12 }}>
-                                                                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                                                                        Raw Data
-                                                                    </Typography>
-                                                                    <Box sx={{
-                                                                        p: 1,
-                                                                        bgcolor: 'white',
-                                                                        borderRadius: 1,
-                                                                        maxHeight: 200,
-                                                                        overflow: 'auto',
-                                                                        border: '1px solid',
-                                                                        borderColor: 'grey.300'
-                                                                    }}>
-                                                                        <pre style={{
-                                                                            margin: 0,
-                                                                            fontSize: '0.75rem',
-                                                                            whiteSpace: 'pre-wrap',
-                                                                            fontFamily: 'monospace'
-                                                                        }}>
-                                                                            {JSON.stringify(nodeItem, null, 2)}
-                                                                        </pre>
-                                                                    </Box>
-                                                                </Grid>
-                                                            )}
-                                                        </Grid>
-                                                    </Box>
-                                                </Collapse>
+                                            <TableCell>
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    startIcon={<InfoIcon />}
+                                                    onClick={() => handleOpenDetails(nodeItem)}
+                                                >
+                                                    Details
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
-                                    </>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                )}
+
+                {/* Detailed View Table */}
+                {viewMode === 'detailed' && (
+                    <TableContainer component={Paper} sx={{ boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                        <Table sx={{ minWidth: 900 }} size="small">
+                            <TableHead>
+                                <TableRow sx={{ bgcolor: 'primary.main' }}>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        Name
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        Node State
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        HW State
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        Node Type
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        Mgmt IP
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        Platform Services
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'primary.contrastText', fontWeight: 'bold' }}>
+                                        System Services
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {sortedData.map((nodeItem) => {
+                                    const hwState = nodeItem.hwComponentState || '';
+                                    const statusColor = getStatusColor(hwState);
+                                    const nodeKey = nodeItem.uoid?.uuid || nodeItem.uuid || nodeItem.name || nodeItem.id;
+                                    const isHealthy = hwState && hwState.toLowerCase() === 'ok';
+                                    const mgmtIp = nodeItem.mgmtIpAddress?.address || '-';
+                                    const platformServicesCount = nodeItem.platformServices?.length || 0;
+                                    const systemServicesCount = nodeItem.systemServices?.length || 0;
+
+                                    return (
+                                        <TableRow
+                                            key={nodeKey}
+                                            sx={{
+                                                '&:nth-of-type(odd)': { bgcolor: 'action.hover' },
+                                                '&:hover': { bgcolor: 'action.selected' },
+                                                borderLeft: `4px solid ${statusColor}`
+                                            }}
+                                        >
+                                            <TableCell>
+                                                <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                                                    {nodeItem.name}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2">
+                                                    {nodeItem.nodeState || '-'}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip
+                                                    variant="filled"
+                                                    color={isHealthy ? "success" : "default"}
+                                                    size="small"
+                                                    label={hwState || '-'}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2">
+                                                    {nodeItem.nodeType || '-'}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                                                    {mgmtIp}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip size="small" label={platformServicesCount} variant="outlined" />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip size="small" label={systemServicesCount} variant="outlined" />
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                )}
+
+                {/* Details Dialog */}
+                <Dialog open={detailsOpen} onClose={handleCloseDetails} maxWidth="md" fullWidth>
+                    <DialogTitle>
+                        Node Details: {selectedNode?.name}
+                    </DialogTitle>
+                    <DialogContent dividers>
+                        {selectedNode && (
+                            <Grid container spacing={2}>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">Name</Typography>
+                                    <Typography variant="body1">{selectedNode.name}</Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">UUID</Typography>
+                                    <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                        {selectedNode.uoid?.uuid || 'N/A'}
+                                    </Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">Node State</Typography>
+                                    <Typography variant="body1">{selectedNode.nodeState || 'N/A'}</Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">HW Component State</Typography>
+                                    <Chip
+                                        size="small"
+                                        label={selectedNode.hwComponentState || 'N/A'}
+                                        color={selectedNode.hwComponentState?.toLowerCase() === 'ok' ? 'success' : 'default'}
+                                    />
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">Node Type</Typography>
+                                    <Typography variant="body1">{selectedNode.nodeType || 'N/A'}</Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">Management IP</Typography>
+                                    <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>
+                                        {selectedNode.mgmtIpAddress?.address || 'N/A'}
+                                    </Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">Orchestration System</Typography>
+                                    <Typography variant="body1">{selectedNode.orchestrationSystemType || 'N/A'}</Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">S3 Signing Type</Typography>
+                                    <Typography variant="body1">{selectedNode.s3SigningType || 'N/A'}</Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">Created</Typography>
+                                    <Typography variant="body1">
+                                        {selectedNode.created ? new Date(selectedNode.created).toLocaleString() : 'N/A'}
+                                    </Typography>
+                                </Grid>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <Typography variant="subtitle2" color="text.secondary">Modified</Typography>
+                                    <Typography variant="body1">
+                                        {selectedNode.modified ? new Date(selectedNode.modified).toLocaleString() : 'N/A'}
+                                    </Typography>
+                                </Grid>
+
+                                {/* Platform Services */}
+                                <Grid size={{ xs: 12 }}>
+                                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                        Platform Services ({selectedNode.platformServices?.length || 0})
+                                    </Typography>
+                                    {selectedNode.platformServices && selectedNode.platformServices.length > 0 ? (
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                            {selectedNode.platformServices.map((svc, idx) => (
+                                                <Tooltip key={idx} title={`${svc._type || ''} - ${svc.serviceState || ''}`}>
+                                                    <Chip
+                                                        size="small"
+                                                        variant="outlined"
+                                                        color={svc.serviceState === 'RUNNING' ? 'success' : 'default'}
+                                                        label={svc.name || svc.exportPath || `Service ${idx + 1}`}
+                                                    />
+                                                </Tooltip>
+                                            ))}
+                                        </Box>
+                                    ) : (
+                                        <Typography variant="body2" color="text.secondary">None</Typography>
+                                    )}
+                                </Grid>
+
+                                {/* System Services */}
+                                <Grid size={{ xs: 12 }}>
+                                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                        System Services ({selectedNode.systemServices?.length || 0})
+                                    </Typography>
+                                    {selectedNode.systemServices && selectedNode.systemServices.length > 0 ? (
+                                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                                            {selectedNode.systemServices.map((svc, idx) => (
+                                                <Tooltip key={idx} title={`${svc._type || ''} - ${svc.operState || ''}`}>
+                                                    <Chip
+                                                        size="small"
+                                                        variant="outlined"
+                                                        color={svc.operState === 'UP' ? 'success' : 'default'}
+                                                        label={svc.name || `Service ${idx + 1}`}
+                                                    />
+                                                </Tooltip>
+                                            ))}
+                                        </Box>
+                                    ) : (
+                                        <Typography variant="body2" color="text.secondary">None</Typography>
+                                    )}
+                                </Grid>
+
+                                {/* Gateway Info */}
+                                {selectedNode.gateway && (
+                                    <Grid size={{ xs: 12 }}>
+                                        <Typography variant="subtitle2" color="text.secondary">Gateway UUID</Typography>
+                                        <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                            {selectedNode.gateway.uoid?.uuid || 'N/A'}
+                                        </Typography>
+                                    </Grid>
+                                )}
+
+                                <Grid size={{ xs: 12 }}>
+                                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                        Raw Data
+                                    </Typography>
+                                    <Box sx={{
+                                        p: 1,
+                                        bgcolor: 'grey.100',
+                                        borderRadius: 1,
+                                        maxHeight: 300,
+                                        overflow: 'auto',
+                                        border: '1px solid',
+                                        borderColor: 'grey.300'
+                                    }}>
+                                        <pre style={{
+                                            margin: 0,
+                                            fontSize: '0.75rem',
+                                            whiteSpace: 'pre-wrap',
+                                            fontFamily: 'monospace'
+                                        }}>
+                                            {JSON.stringify(selectedNode, null, 2)}
+                                        </pre>
+                                    </Box>
+                                </Grid>
+                            </Grid>
+                        )}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleCloseDetails}>Close</Button>
+                    </DialogActions>
+                </Dialog>
             </Container>
         );
     }

@@ -56,11 +56,15 @@ const CompositeMachineInfo = lazy(() => import('./CompositeMachineInfo'));
 const AdobeUsers = lazy(() => import('./AdobeUsers'));
 const AdobeGroups = lazy(() => import('./AdobeGroups'));
 const ParsecUsers = lazy(() => import('./ParsecUsers'));
+const ParsecHosts = lazy(() => import('./ParsecHosts'));
 const GoogleUsers = lazy(() => import('./GoogleUsers'));
 const GoogleCalendars = lazy(() => import('./GoogleCalendars'));
 const ZoomUsers = lazy(() => import('./ZoomUsers'));
 const DocusignUsers = lazy(() => import('./DocusignUsers'));
 const SlackUsers = lazy(() => import('./SlackUsers'));
+const SlackConversations = lazy(() => import('./SlackConversations'));
+const SlackUserGroups = lazy(() => import('./SlackUserGroups'));
+const WelcomeNewResident = lazy(() => import('./WelcomeNewResident'));
 const OktaLocations = lazy(() => import('./OktaLocations'));
 const OnboardNewUser = lazy(() => import('./OnboardNewUser'));
 const ZenDeskArchiveTickets = lazy(() => import('./ZenDeskArchiveTickets'));
@@ -78,6 +82,10 @@ const ResidenceProjects = lazy(() => import('./ResidenceProjects'));
 const GlobalCapabilities = lazy(() => import('./GlobalCapabilities'));
 const GiantAntProjects = lazy(() => import('./GiantAntProjects'));
 const QueryGemini = lazy(() => import('./QueryGemini'));
+const SyncSketchProjects = lazy(() => import('./SyncSketchProjects'));
+const LansweeperAssets = lazy(() => import('./LansweeperAssets'));
+const LicenseHistory = lazy(() => import('./LicenseHistory'));
+const LicenseExploration = lazy(() => import('./LicenseExploration'));
 
 
 const allowedEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co"
@@ -166,6 +174,22 @@ const AppRoutes = () => {
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
             <RLMLicenseInfo />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/licensehistory" element={<RequiredAuth allowedEmail={ITEmails}/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <LicenseHistory name="License History" />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/licenseexploration" element={<RequiredAuth allowedEmail={ITEmails}/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <LicenseExploration name="License Exploration" />
           </Suspense>
         }/>
       </Route>
@@ -303,6 +327,22 @@ const AppRoutes = () => {
         }/>
       </Route>
 
+      <Route path="/slackconversations" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <SlackConversations name="Slack Conversations"/>
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/slackusergroups" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <SlackUserGroups name="Slack User Groups"/>
+          </Suspense>
+        }/>
+      </Route>
+
       <Route path="/docusignusers" element={<RequiredAuth/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
@@ -333,7 +373,7 @@ const AppRoutes = () => {
       <Route path="/welcomenewresident" element={<RequiredAuth allowedEmail={ITEmails}/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
-            <SlackUsers name="Welcome New Resident" />
+            <WelcomeNewResident name="Welcome New Resident" />
           </Suspense>
         }/>
       </Route>
@@ -401,6 +441,14 @@ const AppRoutes = () => {
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
             <ParsecUsers name="Parsec" />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/parsechosts" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <ParsecHosts name="Parsec Hosts" />
           </Suspense>
         }/>
       </Route>
@@ -513,6 +561,22 @@ const AppRoutes = () => {
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}>
             <GiantAntProjects />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/syncsketchprojects" element={<RequiredAuth allowedEmail={allowedEmails}/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <SyncSketchProjects />
+          </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/lansweeperassets" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <LansweeperAssets name="Lansweeper Assets" />
           </Suspense>
         }/>
       </Route>

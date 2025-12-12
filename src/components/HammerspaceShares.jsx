@@ -1,4 +1,4 @@
-import { 
+import {
   Chip, Typography, Box, Container, Grid, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Paper, IconButton, Collapse, Tooltip, Card
@@ -7,13 +7,13 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import FolderSharedIcon from '@mui/icons-material/FolderShared';
 import StorageIcon from '@mui/icons-material/Storage';
-import { useState } from 'react';
-import { useQueries } from "@tanstack/react-query";
+import { useState, useMemo } from 'react';
+import { useProtectedApiGet } from '../hooks/useApi';
 import CircularProgress from '@mui/material/CircularProgress';
 
 export default function HammerspaceShares(props) {
     const [expanded, setExpanded] = useState({});
-    
+
     // Toggle expansion state for a specific share
     const handleToggle = (shareId) => {
         setExpanded(prev => ({
@@ -21,31 +21,21 @@ export default function HammerspaceShares(props) {
             [shareId]: !prev[shareId]
         }));
     };
-    
-    const [hammerspaceShares] = useQueries({
-        queries: [
-          {
-            queryKey: ["hammerspaceShares"],
-            queryFn: async () => {
-                const response = await fetch("https://laxcoresrv.buck.local:8000/hammerspace?item=shares", {
-                    method: "GET",
-                    mode: "cors",
-                    headers: {
-                        "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo",
-                        "Content-type": "application/json"
-                    }
-                });
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch shares: ${response.statusText}`);
-                }
-                return response.json();
-            },
-            staleTime: 5 * 60 * 1000, // 5 minutes
+
+    const hammerspaceSharesQuery = useProtectedApiGet('/hammerspace', {
+        queryParams: { item: 'shares' },
+        queryConfig: {
+            staleTime: 5 * 60 * 1000,
             refetchOnWindowFocus: false,
             retry: 2
-        },
-        ]
+        }
     });
+
+    const hammerspaceShares = useMemo(() => ({
+        isLoading: hammerspaceSharesQuery.isLoading,
+        error: hammerspaceSharesQuery.error,
+        data: hammerspaceSharesQuery.data
+    }), [hammerspaceSharesQuery.isLoading, hammerspaceSharesQuery.error, hammerspaceSharesQuery.data]);
 
     if (hammerspaceShares.isLoading) {
         return (
@@ -118,7 +108,7 @@ export default function HammerspaceShares(props) {
 
                 {/* Summary Statistics */}
                 <Grid container spacing={2} sx={{ mb: 4 }}>
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'primary.light', color: 'primary.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                                 {sortedData.length}
@@ -129,7 +119,7 @@ export default function HammerspaceShares(props) {
                         </Card>
                     </Grid>
                     
-                    <Grid item xs={12} sm={6} md={3}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light', color: 'success.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                                 {activeShares}
@@ -139,8 +129,8 @@ export default function HammerspaceShares(props) {
                             </Typography>
                         </Card>
                     </Grid>
-                    
-                    <Grid item xs={12} sm={6} md={3}>
+
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', color: 'info.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                                 {totalObjectives}
@@ -150,8 +140,8 @@ export default function HammerspaceShares(props) {
                             </Typography>
                         </Card>
                     </Grid>
-                    
-                    <Grid item xs={12} sm={6} md={3}>
+
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'secondary.light', color: 'secondary.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                                 {shareStates.length}
@@ -254,7 +244,7 @@ export default function HammerspaceShares(props) {
                                                 <Collapse in={expanded[shareKey]} timeout="auto" unmountOnExit>
                                                     <Box sx={{ margin: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                                                         <Grid container spacing={3}>
-                                                            <Grid item xs={12} md={6}>
+                                                            <Grid size={{ xs: 12, md: 6 }}>
                                                                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                                                                     Full Path
                                                                 </Typography>
@@ -262,8 +252,8 @@ export default function HammerspaceShares(props) {
                                                                     {shareItem.path}
                                                                 </Typography>
                                                             </Grid>
-                                                            
-                                                            <Grid item xs={12} md={6}>
+
+                                                            <Grid size={{ xs: 12, md: 6 }}>
                                                                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                                                                     Share State
                                                                 </Typography>
@@ -271,9 +261,9 @@ export default function HammerspaceShares(props) {
                                                                     {shareItem.shareState}
                                                                 </Typography>
                                                             </Grid>
-                                                            
+
                                                             {shareItem.shareObjectives && shareItem.shareObjectives.length > 0 && (
-                                                                <Grid item xs={12} sx={{ overflow: 'visible' }}>
+                                                                <Grid size={{ xs: 12 }} sx={{ overflow: 'visible' }}>
                                                                     <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                                                                         Associated Objectives
                                                                     </Typography>
@@ -475,7 +465,7 @@ export default function HammerspaceShares(props) {
 
                                                             {/* Raw Data */}
                                                             {Object.keys(shareItem).length > 4 && (
-                                                                <Grid item xs={12}>
+                                                                <Grid size={{ xs: 12 }}>
                                                                     <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                                                                         Raw Data
                                                                     </Typography>

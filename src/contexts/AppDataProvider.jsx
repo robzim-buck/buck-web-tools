@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useProtectedApiGet } from '../hooks/useApi';
 import { useQueries } from "@tanstack/react-query";
 
@@ -19,9 +19,42 @@ export const useAppData = () => {
 
 /**
  * AppDataProvider component that fetches and provides all common application data
- * This component pre-fetches data in the background when the application loads
+ * Data is LAZY LOADED - queries only run when components request specific data
+ * This prevents unnecessary API calls when navigating to pages that don't need the shared data
  */
 export const AppDataProvider = ({ children }) => {
+  // Track which data sources have been requested by components
+  const [enabledQueries, setEnabledQueries] = useState({
+    googleStaff: false,
+    googleFreelance: false,
+    parsecUsers: false,
+    jamfMachineInfo: false,
+    oktaGroups: false,
+    oktaUsers: false,
+    ldapRawMachineInfo: false,
+    ldapBasicMachineInfo: false,
+    assignments: false,
+    parsecReport: false,
+    ldapMachineInfo: false,
+    saltMachineInfo: false,
+    saltPingInfo: false,
+    slackUsers: false,
+  });
+
+  // Function to request specific data - call this in components that need the data
+  const requestData = useCallback((dataKeys) => {
+    const keysArray = Array.isArray(dataKeys) ? dataKeys : [dataKeys];
+    setEnabledQueries(prev => {
+      const newState = { ...prev };
+      keysArray.forEach(key => {
+        if (key in newState) {
+          newState[key] = true;
+        }
+      });
+      return newState;
+    });
+  }, []);
+
   // Common query configuration
   const commonQueryConfig = {
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -33,13 +66,13 @@ export const AppDataProvider = ({ children }) => {
   // ========== GOOGLE USERS ==========
   const googleStaffUsersQuery = useProtectedApiGet('/google/buckgoogleusers', {
     queryParams: { status: 'active', emp_type: 'Staff' },
-    queryConfig: commonQueryConfig,
+    queryConfig: { ...commonQueryConfig, enabled: enabledQueries.googleStaff },
     dependencies: ['staff']
   });
 
   const googleFreelanceUsersQuery = useProtectedApiGet('/google/buckgoogleusers', {
     queryParams: { status: 'active', emp_type: 'Freelance' },
-    queryConfig: commonQueryConfig,
+    queryConfig: { ...commonQueryConfig, enabled: enabledQueries.googleFreelance },
     dependencies: ['freelance']
   });
 
@@ -60,7 +93,8 @@ export const AppDataProvider = ({ children }) => {
             "Content-type": "application/json"
           }
         }).then((res) => res.json()),
-        ...commonQueryConfig
+        ...commonQueryConfig,
+        enabled: enabledQueries.parsecUsers
       }
     ]
   });
@@ -75,7 +109,8 @@ export const AppDataProvider = ({ children }) => {
             'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
           }
         }).then((res) => res.json()),
-        ...commonQueryConfig
+        ...commonQueryConfig,
+        enabled: enabledQueries.jamfMachineInfo
       }
     ]
   });
@@ -86,7 +121,7 @@ export const AppDataProvider = ({ children }) => {
   // ========== OKTA GROUPS ==========
   const oktaGroupsQuery = useProtectedApiGet('/buckokta/category/att/comparison/match', {
     queryParams: { _category: 'groups', _att: 'type', _comparison: 'eq', _match: 'OKTA_GROUP' },
-    queryConfig: commonQueryConfig
+    queryConfig: { ...commonQueryConfig, enabled: enabledQueries.oktaGroups }
   });
 
   // ========== OKTA USERS ========== (ACTIVE ONLY)
@@ -97,7 +132,7 @@ export const AppDataProvider = ({ children }) => {
       _comparison: 'eq',
       _match: 'ACTIVE'
     },
-    queryConfig: commonQueryConfig
+    queryConfig: { ...commonQueryConfig, enabled: enabledQueries.oktaUsers }
   });
 
   // ========== OKTA LOCATIONS ========== (NOT PRE-FETCHED - causes 422 errors)
@@ -114,12 +149,12 @@ export const AppDataProvider = ({ children }) => {
 
   // ========== LDAP RAW MACHINE INFO ==========
   const ldapRawMachineInfoQuery = useProtectedApiGet('/buckldap_raw_machineinfo', {
-    queryConfig: commonQueryConfig
+    queryConfig: { ...commonQueryConfig, enabled: enabledQueries.ldapRawMachineInfo }
   });
 
   // ========== LDAP MACHINE INFO (for LDAPMachineInfo component) ==========
   const ldapBasicMachineInfoQuery = useProtectedApiGet('/buckldap_machineinfo', {
-    queryConfig: commonQueryConfig
+    queryConfig: { ...commonQueryConfig, enabled: enabledQueries.ldapBasicMachineInfo }
   });
 
   // ========== ASSIGNMENTS (Workstation Assignments from SQL Database) ==========
@@ -162,6 +197,7 @@ export const AppDataProvider = ({ children }) => {
         refetchOnWindowFocus: false,
         retry: 2,
         retryDelay: 1000,
+        enabled: enabledQueries.assignments,
       }
     ]
   });
@@ -180,7 +216,8 @@ export const AppDataProvider = ({ children }) => {
             "Content-type": "application/json"
           }
         }).then((res) => res.json()),
-        ...commonQueryConfig
+        ...commonQueryConfig,
+        enabled: enabledQueries.parsecReport
       }
     ]
   });
@@ -195,7 +232,8 @@ export const AppDataProvider = ({ children }) => {
             "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo"
           }
         }).then((res) => res.json()),
-        ...commonQueryConfig
+        ...commonQueryConfig,
+        enabled: enabledQueries.ldapMachineInfo
       }
     ]
   });
@@ -210,7 +248,8 @@ export const AppDataProvider = ({ children }) => {
             "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo"
           }
         }).then((res) => res.json()),
-        ...commonQueryConfig
+        ...commonQueryConfig,
+        enabled: enabledQueries.saltMachineInfo
       }
     ]
   });
@@ -226,7 +265,8 @@ export const AppDataProvider = ({ children }) => {
             "x-token": "a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo"
           }
         }).then((res) => res.json()),
-        ...commonQueryConfig
+        ...commonQueryConfig,
+        enabled: enabledQueries.saltPingInfo
       }
     ]
   });
@@ -274,7 +314,8 @@ export const AppDataProvider = ({ children }) => {
 
           return { items: allUsers, total: allUsers.length };
         },
-        ...commonQueryConfig
+        ...commonQueryConfig,
+        enabled: enabledQueries.slackUsers
       }
     ]
   });
@@ -336,6 +377,12 @@ export const AppDataProvider = ({ children }) => {
 
   // Context value - provide all data and loading states
   const contextValue = {
+    // Function to request data loading - call this in useEffect to load specific data
+    requestData,
+
+    // Which queries are currently enabled
+    enabledQueries,
+
     // Raw query objects (for refetching, error states, etc.)
     queries: {
       googleStaff: googleStaffUsersQuery,

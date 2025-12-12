@@ -277,7 +277,7 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                 {/* Alphabetically sorted user management items */}
                 <ListItemButton component={Link} to="/adobegroups" id="adobe-groups-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><GroupsIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Adobe Groups" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  <ListItemText primary="Adobe Groups -> Members" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/adobeusers" id="adobe-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><BadgeIcon fontSize="small" /></ListItemIcon>
@@ -297,7 +297,7 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                 </ListItemButton>
                 <ListItemButton component={Link} to="/ldapgroups" id="ldap-groups-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><GroupsIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="LDAP Groups" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  <ListItemText primary="LDAP Groups -> Members" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/ldapusers" id="ldap-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ContactMailIcon fontSize="small" /></ListItemIcon>
@@ -305,7 +305,7 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                 </ListItemButton>
                 <ListItemButton component={Link} to="/oktagroups" id="okta-groups-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><PeopleIcon fontSize="small" /></ListItemIcon>
-                  <ListItemText primary="Okta Groups" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  <ListItemText primary="Okta Groups -> Members" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 {hasAccess(restrictedEmails) && (
                   <ListItemButton component={Link} to="/oktalocations" id="okta-locations-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
@@ -326,6 +326,14 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                 <ListItemButton component={Link} to="/slackusers" id="slack-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Slack Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/slackconversations" id="slack-conversations-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><GroupsIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Slack Conversations" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/slackusergroups" id="slack-usergroups-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><GroupsIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Slack User Groups" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/zoomusers" id="zoom-users-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
@@ -350,7 +358,7 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                     <ListItemIcon>
                       <Box
                         component="img"
-                        src="/residence-logo.png"
+                        src="/resldence-logo-square.png"
                         alt="Residence Logo"
                         sx={{ width: 20, height: 20, objectFit: 'contain' }}
                       />
@@ -369,7 +377,7 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                         <ListItemIcon>
                           <Box
                             component="img"
-                            src="/residence-logo.png"
+                            src="/resldence-logo-square.png"
                             alt="Residence Logo"
                             sx={{ width: 20, height: 20, objectFit: 'contain' }}
                           />
@@ -382,7 +390,7 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                         <ListItemIcon>
                           <Box
                             component="img"
-                            src="/residence-logo.png"
+                            src="/resldence-logo-square.png"
                             alt="Residence Logo"
                             sx={{ width: 20, height: 20, objectFit: 'contain' }}
                           />
@@ -442,7 +450,7 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                       <ListItemIcon>
                         <Box
                           component="img"
-                          src="/residence-logo.png"
+                          src="/resldence-logo-square.png"
                           alt="Residence Logo"
                           sx={{ width: 20, height: 20, objectFit: 'contain' }}
                         />
@@ -497,6 +505,18 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                   <ListItemIcon><BarChartIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="RLM License Info" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
+                {hasAccess(ITEmails) && (
+                  <ListItemButton component={Link} to="/licensehistory" id="license-history-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><ListIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="License History" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                )}
+                {hasAccess(ITEmails) && (
+                  <ListItemButton component={Link} to="/licenseexploration" id="license-exploration-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                    <ListItemIcon><FindInPageIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="License Exploration" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                  </ListItemButton>
+                )}
               </List>
             </Collapse>
 
@@ -560,6 +580,14 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                 <ListItemButton component={Link} to="/compositemachineinfo" id="compositemachineinfo-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><AccountTreeIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Composite Machine Info" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/parsechosts" id="parsec-hosts-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Parsec Hosts" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/lansweeperassets" id="lansweeper-assets-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Lansweeper Assets" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
                 <ListItemButton component={Link} to="/physicaldrives" id="physicaldrives-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><StorageIcon fontSize="small" /></ListItemIcon>
@@ -840,6 +868,10 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                 <ListItemButton component={Link} to="/apilogs" id="logs-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><TerminalIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Logs" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
+                <ListItemButton component={Link} to="/syncsketchprojects" id="syncsketch-projects-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><FolderIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="SyncSketch Projects" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
               </List>
             </Collapse>

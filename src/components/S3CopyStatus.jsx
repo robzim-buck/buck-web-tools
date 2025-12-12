@@ -19,7 +19,14 @@ import {
   Stack,
   Card,
   CardContent,
-  Tooltip
+  Tooltip,
+  Button,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -28,7 +35,8 @@ import {
   HourglassEmpty as PendingIcon,
   PlayArrow as RunningIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  ExpandLess as ExpandLessIcon,
+  Stop as StopIcon
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -40,8 +48,10 @@ dayjs.extend(duration);
 export default function S3CopyStatus(props) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [killDialog, setKillDialog] = useState({ open: false, host: '', pid: '' });
 
-  const { data, isLoading, error, refetch } = useApiGet('/utils/copy_to_s3__status', {
+  const { data, isLoading, error, refetch } = useApiGet('/utils/copy_to_s3_status', {
     queryConfig: {
       refetchInterval: 10000, // Auto refresh every 10 seconds
       refetchIntervalInBackground: true
@@ -62,6 +72,58 @@ export default function S3CopyStatus(props) {
       newExpanded.add(taskId);
     }
     setExpandedRows(newExpanded);
+  };
+
+  const handleKillClick = (host, pid) => {
+    setKillDialog({ open: true, host, pid });
+  };
+
+  const handleKillDialogClose = () => {
+    setKillDialog({ open: false, host: '', pid: '' });
+  };
+
+  const handleKillConfirm = async () => {
+    const { host, pid } = killDialog;
+    handleKillDialogClose();
+
+    try {
+      const response = await fetch(
+        `https://laxcoresrv.buck.local:8000/utils/kill_process_on_host/${encodeURIComponent(host)}coresrv/${encodeURIComponent(pid)}`,
+        {
+          method: 'POST',
+          headers: {
+            'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo'
+          }
+        }
+      );
+
+      if (response.ok) {
+        setSnackbar({
+          open: true,
+          message: `Successfully killed process ${pid} on ${host}`,
+          severity: 'success'
+        });
+        // Refresh the list after killing
+        handleRefresh();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setSnackbar({
+          open: true,
+          message: `Failed to kill process: ${errorData.message || response.statusText}`,
+          severity: 'error'
+        });
+      }
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: `Error killing process: ${error.message}`,
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
 
   const formatDate = (dateString) => {
@@ -140,6 +202,7 @@ export default function S3CopyStatus(props) {
                 <TableCell>PID</TableCell>
                 <TableCell>Date/Time</TableCell>
                 <TableCell>Command</TableCell>
+                <TableCell width="10%" align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -184,10 +247,30 @@ export default function S3CopyStatus(props) {
                           {task.command || 'N/A'}
                         </Typography>
                       </TableCell>
+
+                      <TableCell align="center">
+                        {task.host && (task.pid !== undefined && task.pid !== null) && (
+                          <Tooltip title="Kill this process" arrow>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleKillClick(task.host, task.pid)}
+                              sx={{
+                                '&:hover': {
+                                  bgcolor: 'error.light',
+                                  color: 'white'
+                                }
+                              }}
+                            >
+                              <StopIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </TableCell>
                     </TableRow>
                     {isExpanded && (
                       <TableRow>
-                        <TableCell colSpan={5} sx={{ py: 0 }}>
+                        <TableCell colSpan={6} sx={{ py: 0 }}>
                           <Box sx={{ m: 2 }}>
                             <Typography variant="subtitle2" gutterBottom>
                               Raw JSON Data
@@ -232,6 +315,51 @@ export default function S3CopyStatus(props) {
           </Typography>
         </Paper>
       )}
+
+      {/* Kill Confirmation Dialog */}
+      <Dialog
+        open={killDialog.open}
+        onClose={handleKillDialogClose}
+        aria-labelledby="kill-dialog-title"
+        aria-describedby="kill-dialog-description"
+      >
+        <DialogTitle id="kill-dialog-title">
+          Confirm Kill Process
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="kill-dialog-description">
+            Are you sure you want to kill this process?
+          </DialogContentText>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              <strong>Machine:</strong> {killDialog.host}
+            </Typography>
+            <Typography variant="body2">
+              <strong>PID:</strong> {killDialog.pid}
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleKillDialogClose} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleKillConfirm} color="error" variant="contained">
+            Kill Process
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={handleSnackbarClose} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 }

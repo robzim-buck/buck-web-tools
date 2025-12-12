@@ -2,8 +2,11 @@ import React from 'react';
 import {
   Chip, Typography, Box, Container, Grid, Alert,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, IconButton, Collapse, Tooltip, Card
+  Paper, IconButton, Collapse, Card, TextField
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RouterIcon from '@mui/icons-material/Router';
@@ -13,6 +16,11 @@ import CircularProgress from '@mui/material/CircularProgress';
 
 export default function HammerSpaceGateways(props) {
     const [expanded, setExpanded] = useState({});
+
+    // Initialize filter date to one week ago
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const [filterDate, setFilterDate] = useState(oneWeekAgo);
 
     // Toggle expansion state for a specific gateway
     const handleToggle = (gatewayId) => {
@@ -47,6 +55,76 @@ export default function HammerSpaceGateways(props) {
         ]
     });
 
+    // Extract and filter data array
+    const dataArray = useMemo(() => {
+        if (!hammerspaceGateways.data) return [];
+
+        const rawData = Array.isArray(hammerspaceGateways.data) ? hammerspaceGateways.data : [];
+
+        // Filter to only show gateways created on or after the selected date
+        const filterTimestamp = filterDate ? filterDate.getTime() : 0;
+
+        return rawData.filter(gateway => {
+            if (!gateway.created) return false;
+            const createdTimestamp = gateway.created;
+            return createdTimestamp >= filterTimestamp;
+        });
+    }, [hammerspaceGateways.data, filterDate]);
+
+    // Group gateways by nodeName
+    const groupedData = useMemo(() => {
+        if (!dataArray || dataArray.length === 0) return [];
+
+        const groups = {};
+
+        dataArray.forEach((gateway) => {
+            const nodeName = gateway.nodeName || 'Unknown';
+
+            if (!groups[nodeName]) {
+                groups[nodeName] = {
+                    nodeName,
+                    // Use first item's values for display
+                    created: gateway.created,
+                    modified: gateway.modified,
+                    ipv4: gateway.ipv4,
+                    _type: gateway._type,
+                    items: [],
+                    // Track unique timestamp combinations
+                    timestampGroups: {}
+                };
+            }
+
+            // Group items by timestamp within each nodeName group
+            const timestampKey = `${gateway.created}-${gateway.modified}`;
+            if (!groups[nodeName].timestampGroups[timestampKey]) {
+                groups[nodeName].timestampGroups[timestampKey] = {
+                    created: gateway.created,
+                    modified: gateway.modified,
+                    items: []
+                };
+            }
+
+            groups[nodeName].timestampGroups[timestampKey].items.push(gateway);
+            groups[nodeName].items.push(gateway);
+        });
+
+        // Convert to array and sort by nodeName
+        return Object.values(groups).sort((a, b) => a.nodeName.localeCompare(b.nodeName));
+    }, [dataArray]);
+
+    // Calculate statistics
+    const statistics = useMemo(() => {
+        const gatewayTypes = [...new Set(dataArray.map(gateway => gateway._type).filter(Boolean))];
+        const gatewaysWithIp = groupedData.filter(group => group.ipv4?.address).length;
+        const uniqueNodes = [...new Set(dataArray.map(gateway => gateway.nodeName).filter(Boolean))].length;
+
+        return {
+            gatewayTypes,
+            gatewaysWithIp,
+            uniqueNodes
+        };
+    }, [dataArray, groupedData]);
+
     if (hammerspaceGateways.isLoading) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', py: 8 }}>
@@ -66,77 +144,70 @@ export default function HammerSpaceGateways(props) {
         );
     }
 
+    // Debug: Log the filtered data
     if (hammerspaceGateways.data) {
-        // Debug: Log the structure to understand the data format
         console.log('HammerSpaceGateways raw data:', hammerspaceGateways.data);
+        console.log('HammerSpaceGateways filtered data (last week):', dataArray);
+    }
 
-        // Gateways data is returned as a direct array, not wrapped in 'results'
-        const dataArray = Array.isArray(hammerspaceGateways.data) ? hammerspaceGateways.data : [];
-
-        if (!dataArray || dataArray.length === 0) {
-            return (
-                <Box sx={{ p: 3, textAlign: 'center' }}>
-                    <Typography variant="h5" color="text.secondary">No Hammerspace gateways found</Typography>
-                </Box>
-            );
-        }
-
-        // Group gateways by nodeName only
-        const groupedData = useMemo(() => {
-            const groups = {};
-
-            dataArray.forEach((gateway) => {
-                const nodeName = gateway.nodeName || 'Unknown';
-
-                if (!groups[nodeName]) {
-                    groups[nodeName] = {
-                        nodeName,
-                        // Use first item's values for display
-                        created: gateway.created,
-                        modified: gateway.modified,
-                        ipv4: gateway.ipv4,
-                        _type: gateway._type,
-                        items: [],
-                        // Track unique timestamp combinations
-                        timestampGroups: {}
-                    };
-                }
-
-                // Group items by timestamp within each nodeName group
-                const timestampKey = `${gateway.created}-${gateway.modified}`;
-                if (!groups[nodeName].timestampGroups[timestampKey]) {
-                    groups[nodeName].timestampGroups[timestampKey] = {
-                        created: gateway.created,
-                        modified: gateway.modified,
-                        items: []
-                    };
-                }
-
-                groups[nodeName].timestampGroups[timestampKey].items.push(gateway);
-                groups[nodeName].items.push(gateway);
-            });
-
-            // Convert to array and sort by nodeName
-            return Object.values(groups).sort((a, b) => a.nodeName.localeCompare(b.nodeName));
-        }, [dataArray]);
-
-        // Calculate statistics
-        const gatewayTypes = [...new Set(dataArray.map(gateway => gateway._type).filter(Boolean))];
-        const gatewaysWithIp = groupedData.filter(group => group.ipv4?.address).length;
-        const uniqueNodes = [...new Set(dataArray.map(gateway => gateway.nodeName).filter(Boolean))].length;
-
+    if (!dataArray || dataArray.length === 0) {
+        const filterDateString = filterDate ? filterDate.toLocaleDateString() : 'the selected date';
         return (
             <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                     <Typography variant='h4' color="primary" fontWeight="medium">
                         {props.name || 'Hammerspace Gateways'}
                     </Typography>
-                    <Chip
-                        label={`${groupedData.length} Gateway Groups (${dataArray.length} total)`}
-                        color="primary"
-                        variant="outlined"
-                        sx={{ fontWeight: 'bold' }}
-                    />
+                    <LocalizationProvider dateAdapter={AdapterDateFns}>
+                        <DatePicker
+                            label="Created On or After"
+                            value={filterDate}
+                            onChange={(newValue) => setFilterDate(newValue)}
+                            slotProps={{
+                                textField: {
+                                    size: 'small',
+                                    sx: { width: 200 }
+                                }
+                            }}
+                        />
+                    </LocalizationProvider>
+                </Box>
+                <Box sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography variant="h5" color="text.secondary">
+                        No Hammerspace gateways found created on or after {filterDateString}
+                    </Typography>
+                </Box>
+            </Container>
+        );
+    }
+
+    return (
+            <Container maxWidth="lg" sx={{ py: 4 }}>
+                <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                    <Typography variant='h4' color="primary" fontWeight="medium">
+                        {props.name || 'Hammerspace Gateways'}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <LocalizationProvider dateAdapter={AdapterDateFns}>
+                            <DatePicker
+                                label="Created On or After"
+                                value={filterDate}
+                                onChange={(newValue) => setFilterDate(newValue)}
+                                slotProps={{
+                                    textField: {
+                                        size: 'small',
+                                        sx: { width: 200 }
+                                    }
+                                }}
+                            />
+                        </LocalizationProvider>
+                        <Chip
+                            label={`${groupedData.length} Gateway Groups (${dataArray.length} total)`}
+                            color="primary"
+                            variant="outlined"
+                            sx={{ fontWeight: 'bold' }}
+                        />
+                    </Box>
                 </Box>
 
                 {/* Summary Statistics */}
@@ -155,7 +226,7 @@ export default function HammerSpaceGateways(props) {
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light', color: 'success.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                                {uniqueNodes}
+                                {statistics.uniqueNodes}
                             </Typography>
                             <Typography variant="body2">
                                 Unique Nodes
@@ -166,7 +237,7 @@ export default function HammerSpaceGateways(props) {
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', color: 'info.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                                {gatewaysWithIp}
+                                {statistics.gatewaysWithIp}
                             </Typography>
                             <Typography variant="body2">
                                 With IP Address
@@ -177,7 +248,7 @@ export default function HammerSpaceGateways(props) {
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card variant="outlined" sx={{ p: 2, textAlign: 'center', bgcolor: 'secondary.light', color: 'secondary.contrastText' }}>
                             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                                {gatewayTypes.length}
+                                {statistics.gatewayTypes.length}
                             </Typography>
                             <Typography variant="body2">
                                 Gateway Types
@@ -385,8 +456,4 @@ export default function HammerSpaceGateways(props) {
                 </TableContainer>
             </Container>
         );
-    }
-
-    // Fallback
-    return null;
 }

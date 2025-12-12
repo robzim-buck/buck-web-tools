@@ -269,43 +269,44 @@ export default function ReturnSelfServeLicenses(props) {
               </Box>
             </Paper>
             <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2 }}>
-                {/* Header Row */}
-                <Grid container spacing={2} sx={{ mb: 2, p: 2, background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)', borderRadius: 2 }}>
-                  <Grid size={3}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
-                      Name
-                    </Typography>
+                <Box sx={{ maxHeight: 'calc(100vh - 400px)', overflowY: 'auto' }}>
+                  {/* Header Row */}
+                  <Grid container spacing={2} sx={{ position: 'sticky', top: 0, zIndex: 10, mb: 2, p: 2, background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%)', borderRadius: 2, backdropFilter: 'blur(10px)' }}>
+                    <Grid size={2}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
+                        Name
+                      </Typography>
+                    </Grid>
+                    <Grid size={2}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
+                        Email
+                      </Typography>
+                    </Grid>
+                    <Grid size={8}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
+                        Products to Return
+                      </Typography>
+                    </Grid>
                   </Grid>
-                  <Grid size={3}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
-                      Email
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#4a5568', fontSize: '0.875rem' }}>
-                      Products to Return
-                    </Typography>
-                  </Grid>
-                </Grid>
-                
-                {filteredData.map((item) => {
+
+                  {filteredData.map((item) => {
                     return <Grid container spacing={2} key={myid+item.profile.login} sx={{ alignItems: 'center', mb: 2, p: 2, bgcolor: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 2, transition: 'all 0.2s', '&:hover': { bgcolor: '#f5f5f5', boxShadow: '0 2px 8px rgba(102, 126, 234, 0.1)' } }}>
                       {/* Name Column */}
-                      <Grid size={3}>
+                      <Grid size={2}>
                         <Typography variant="body1" sx={{ fontWeight: 600, color: '#2d3748' }}>
                           {item.profile.displayName ? item.profile.displayName : ''}
                         </Typography>
                       </Grid>
 
                       {/* Email Column */}
-                      <Grid size={3}>
+                      <Grid size={2}>
                         <Typography variant="body2" sx={{ color: '#718096' }}>
                           {item.profile.login ? item.profile.login : ''}
                         </Typography>
                       </Grid>
 
                       {/* Products Column */}
-                      <Grid size={6}>
+                      <Grid size={8}>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                           <Chip
                             label="Adobe"
@@ -487,10 +488,29 @@ export default function ReturnSelfServeLicenses(props) {
                               }
                             }}
                           />
+                          <Chip
+                            label="Firefly"
+                            onClick={(e) => {releaseLicense(e, item.profile.login, 'Firefly')}}
+                            clickable
+                            size="small"
+                            sx={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                              color: 'white',
+                              transition: 'all 0.2s',
+                              '&:hover': {
+                                background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 4px 8px rgba(102, 126, 234, 0.3)'
+                              }
+                            }}
+                          />
                         </Box>
                       </Grid>
                     </Grid>
                 })}
+                </Box>
             </Paper>
             </Container>
             )

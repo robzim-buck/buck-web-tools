@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Typography, Box, Card, CardContent, Grid, Chip,
     ToggleButtonGroup, ToggleButton, Paper
@@ -10,7 +10,13 @@ import { useAppData } from '../contexts/AppDataProvider';
 
 export default function LDAPMachineInfo(props) {
     // Get pre-fetched data from context
-    const { queries } = useAppData();
+    const { queries, requestData } = useAppData();
+
+    // Request the data this component needs
+    useEffect(() => {
+        requestData('ldapBasicMachineInfo');
+    }, [requestData]);
+
     const ldap_machine_info = queries.ldapBasicMachineInfo;
 
     // View mode state

@@ -208,10 +208,17 @@ const CompositeMachineInfo = ({
     return 'N/A';
   };
 
-  // Get data from context (pre-fetched) or use props if provided
-  const { queries } = useAppData();
+  // Get data from context (lazy-loaded) or use props if provided
+  const { queries, requestData } = useAppData();
 
   const usePropData = parsecInfoData && jamfComputersData && machineInfoFromLDAPData && saltMachineInfoData && saltPingInfoData;
+
+  // Request the data this component needs (only if not using prop data)
+  useEffect(() => {
+    if (!usePropData) {
+      requestData(['parsecReport', 'jamfMachineInfo', 'ldapMachineInfo', 'saltMachineInfo', 'saltPingInfo']);
+    }
+  }, [requestData, usePropData]);
 
   // Use pre-fetched data from context if props not provided
   const parsecInfo = usePropData ? { data: parsecInfoData, isLoading: externalIsLoading, error: null } : queries.parsecReport;

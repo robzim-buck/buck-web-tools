@@ -9,7 +9,7 @@ import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import TableRowsIcon from '@mui/icons-material/TableRows';
 import { useAppData } from '../contexts/AppDataProvider';
 import uuid from 'react-uuid';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 export default function ParsecUsers({ name = "Parsec" }) {
   const [selectedUserEmail, setSelectedUserEmail] = useState(null);
@@ -47,7 +47,13 @@ export default function ParsecUsers({ name = "Parsec" }) {
   };
 
   // Get data from context
-  const { data: appData, queries, isDataLoading } = useAppData();
+  const { data: appData, queries, isDataLoading, requestData } = useAppData();
+
+  // Request the data this component needs
+  useEffect(() => {
+    requestData(['parsecUsers', 'googleStaff', 'googleFreelance']);
+  }, [requestData]);
+
   const parsecUsers = queries.parsecUsers;
   const googleUsersByEmail = appData.googleUsersByEmail || {};
 

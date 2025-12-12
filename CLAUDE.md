@@ -12,6 +12,7 @@
 - Never run npm start. Always assume the developer is running npm start in a terminal session.
 - When fetching data from the Buck API, always use https://laxcoresrv.buck.local:8000/openapi.json as a reference.
 - If an API call is 'protected' use this header { 'x-token': 'a4taego8aerg;oeu;ghak1934570283465g23745693^$&%^$#$#^$#^#$nrghaoiughnoaergfo' } when fetching data
+- When creating a component, if the api returns tabular data, always create both a card and table view.
 - Never use axios to fetch data.
 - For deployment, use npm run build and the ./copy_to_lax.sh script
 - Never create helper apps like those defined in srv/hooks/useApi.js.  Always fix or modify the Component or route requested by the user.
