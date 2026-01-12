@@ -3,7 +3,8 @@ import {
   Grid, Chip, Box, Divider, List, ListItem, ListItemText, Paper, Typography,
   Container, TextField, InputAdornment, Card, CardContent, Avatar,
   CircularProgress, Alert, AlertTitle, Tab, Tabs, IconButton, Tooltip,
-  Badge, TablePagination, FormControl, InputLabel, Select, MenuItem
+  Badge, TablePagination, FormControl, InputLabel, Select, MenuItem,
+  Dialog, DialogTitle, DialogContent, DialogActions, Button
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -13,7 +14,8 @@ import {
   Business as BusinessIcon,
   CheckCircleOutline as ActiveIcon,
   CancelOutlined as InactiveIcon,
-  FilterList as FilterIcon
+  FilterList as FilterIcon,
+  Code as CodeIcon
 } from '@mui/icons-material';
 import { useQueries } from "@tanstack/react-query";
 import { useAppData } from '../contexts/AppDataProvider';
@@ -475,9 +477,19 @@ export default function AdobeUsers() {
 // Separate component for user list items
 function UserListItem({ user, isLast, googleUser }) {
   const [expanded, setExpanded] = useState(false);
-  
+  const [rawDataOpen, setRawDataOpen] = useState(false);
+
   const toggleExpanded = () => {
     setExpanded(!expanded);
+  };
+
+  const handleRawDataOpen = (e) => {
+    e.stopPropagation();
+    setRawDataOpen(true);
+  };
+
+  const handleRawDataClose = () => {
+    setRawDataOpen(false);
   };
   
   // Generate user avatar with initials
@@ -601,7 +613,7 @@ function UserListItem({ user, isLast, googleUser }) {
                 })()}
               </Box>
 
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                 <Chip
                   size="small"
                   color={user.status === 'active' ? 'success' : 'default'}
@@ -614,6 +626,15 @@ function UserListItem({ user, isLast, googleUser }) {
                   label={user.type}
                   variant="outlined"
                 />
+                <Tooltip title="View Raw Data">
+                  <IconButton
+                    size="small"
+                    onClick={handleRawDataOpen}
+                    sx={{ ml: 0.5 }}
+                  >
+                    <CodeIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
               </Box>
             </Box>
 
@@ -837,6 +858,36 @@ function UserListItem({ user, isLast, googleUser }) {
       </ListItem>
       
       {!isLast && <Divider component="li" />}
+
+      {/* Raw Data Dialog */}
+      <Dialog
+        open={rawDataOpen}
+        onClose={handleRawDataClose}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Raw User Data - {user.firstname} {user.lastname}
+        </DialogTitle>
+        <DialogContent>
+          <Box
+            component="pre"
+            sx={{
+              bgcolor: 'grey.100',
+              p: 2,
+              borderRadius: 1,
+              overflow: 'auto',
+              fontSize: '0.85rem',
+              maxHeight: '60vh'
+            }}
+          >
+            {JSON.stringify(user, null, 2)}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleRawDataClose}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

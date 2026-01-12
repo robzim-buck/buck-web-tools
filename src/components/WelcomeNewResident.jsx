@@ -138,23 +138,30 @@ export default function WelcomeNewResident(props) {
     return Array.from(departmentSet).sort();
   }, [oktaUsersData]);
 
+  // Create a mapping of email to department from Okta users
+  const emailToDepartmentMap = useMemo(() => {
+    if (!oktaUsersData || !Array.isArray(oktaUsersData)) return {};
+
+    const emailMap = {};
+    oktaUsersData.forEach(user => {
+      if (user?.profile?.email && user?.profile?.department) {
+        emailMap[user.profile.email.toLowerCase()] = user.profile.department;
+      }
+    });
+
+    return emailMap;
+  }, [oktaUsersData]);
+
   // Use context data if available, otherwise use fetched data
   const slackUsersData = contextData || fetchedData;
   const isLoading = contextLoading || isFetching || isLoadingOktaUsers;
   const error = contextError || fetchError;
 
-  // Mutation for sending welcome message (with optional department)
+  // Mutation for sending welcome message (department required)
   const sendWelcomeMutation = useMutation({
     mutationFn: async ({ userId, department }) => {
-      // Build the URL based on whether a department is selected
-      let url;
-      if (department) {
-        // Use the department endpoint with buck_department query param
-        url = `https://laxcoresrv.buck.local:8000/coda_post_slack_welcome_message_for_buck_department/${userId}/${encodeURIComponent(department)}?buck_department=${encodeURIComponent(department)}`;
-      } else {
-        // Use the department endpoint without the department param (empty department in path)
-        url = `https://laxcoresrv.buck.local:8000/coda_post_slack_welcome_message_for_buck_department/${userId}/`;
-      }
+      // Department is required - passed as path parameter: /channel/department
+      const url = `https://laxcoresrv.buck.local:8000/coda_post_slack_welcome_message_for_buck_department/${userId}/${encodeURIComponent(department)}`;
 
       const response = await fetch(url, {
         method: 'POST',
@@ -224,9 +231,22 @@ export default function WelcomeNewResident(props) {
   });
 
   const handleSendWelcome = (user) => {
+    // Determine the department: use manually selected, or auto-detect from Okta
+    const userEmail = user.profile?.email?.toLowerCase();
+    const userDepartment = selectedDepartment || (userEmail ? emailToDepartmentMap[userEmail] : null);
+
+    if (!userDepartment) {
+      setSnackbar({
+        open: true,
+        message: `Cannot send welcome message: No department found for ${user.real_name || user.name}. Please select a department manually or ensure the user exists in Okta with a department.`,
+        severity: 'error'
+      });
+      return;
+    }
+
     sendWelcomeMutation.mutate({
       userId: user.id,
-      department: selectedDepartment
+      department: userDepartment
     });
   };
 
@@ -873,17 +893,25 @@ export default function WelcomeNewResident(props) {
                 </TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="primary"
-                      startIcon={<SendIcon />}
-                      onClick={() => handleSendWelcome(user)}
-                      disabled={sendWelcomeMutation.isPending || !user.id}
-                      sx={{ textTransform: 'none', minWidth: 150 }}
-                    >
-                      {selectedDepartment ? `Welcome (${selectedDepartment})` : 'Send Welcome'}
-                    </Button>
+                    {(() => {
+                      const userEmail = user.profile?.email?.toLowerCase();
+                      const autoDetectedDepartment = userEmail ? emailToDepartmentMap[userEmail] : null;
+                      const effectiveDepartment = selectedDepartment || autoDetectedDepartment;
+
+                      return (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color={effectiveDepartment ? 'primary' : 'warning'}
+                          startIcon={<SendIcon />}
+                          onClick={() => handleSendWelcome(user)}
+                          disabled={sendWelcomeMutation.isPending || !user.id}
+                          sx={{ textTransform: 'none', minWidth: 150 }}
+                        >
+                          {effectiveDepartment ? `Welcome (${effectiveDepartment})` : 'No Dept Found'}
+                        </Button>
+                      );
+                    })()}
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <TextField
                         size="small"

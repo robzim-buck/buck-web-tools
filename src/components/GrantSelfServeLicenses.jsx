@@ -79,8 +79,8 @@ export default function GrantSelfServeLicenses(props) {
 
   function grabLicense(event, useremail, license) {
     console.log(event)
-    if ( ! useremail.includes('buck.co') && ! useremail.includes('anyways.co') && ! useremail.includes('giantant.ca') ) {
-      alert(`Only works for Buck, GiantAnt and Anyways Users, not for ${useremail}`)
+    if ( ! useremail.includes('buck.co') && ! useremail.includes('anyways.co') && ! useremail.includes('giantant.ca') && ! useremail.includes('residence.co') ) {
+      alert(`Only works for Buck, Residence, GiantAnt and Anyways Users, not for ${useremail}`)
       return
     }
     setOperation('Grabbing');

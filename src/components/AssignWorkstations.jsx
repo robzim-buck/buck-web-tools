@@ -1,7 +1,7 @@
 import {
   Typography, Paper, Grid, Box, Button, TextField, Autocomplete,
   CircularProgress, Alert, Snackbar, Chip, Card, CardContent,
-  IconButton, Tooltip,
+  IconButton, Tooltip, Collapse,
   Dialog, DialogTitle, DialogContent, DialogActions, Fade, Divider, Avatar,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
   ToggleButtonGroup, ToggleButton, InputAdornment, Switch, FormControlLabel
@@ -17,7 +17,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import TableViewIcon from '@mui/icons-material/TableView';
 import SearchIcon from '@mui/icons-material/Search';
-import ExitToAppIcon from '@mui/icons-material/ExitToApp';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { useState, useMemo, useEffect } from 'react';
 import { useProtectedApiGet } from '../hooks/useApi';
 import { useAppData } from '../contexts/AppDataProvider';
@@ -45,6 +46,26 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
   const [parsecSearchFilter, setParsecSearchFilter] = useState('');
   const [parsecOrderBy, setParsecOrderBy] = useState('email');
   const [parsecOrder, setParsecOrder] = useState('asc');
+
+  // Last workstation assigned table state
+  const [lastWsOrderBy, setLastWsOrderBy] = useState('email');
+  const [lastWsOrder, setLastWsOrder] = useState('asc');
+  const [lastWsSearchFilter, setLastWsSearchFilter] = useState('');
+
+  // Panel collapse state
+  const [panelsExpanded, setPanelsExpanded] = useState({
+    createAssignment: true,
+    lastWorkstation: true,
+    globalAssignments: true,
+    parsecAssignments: true
+  });
+
+  const togglePanel = (panel) => {
+    setPanelsExpanded(prev => ({
+      ...prev,
+      [panel]: !prev[panel]
+    }));
+  };
 
 
   // Get data from context (lazy-loaded)
@@ -835,6 +856,79 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
     return lookup;
   }, [assignmentsList]);
 
+  // Users with their last assigned workstation (for the Last Workstation Assigned table)
+  const usersWithLastAssignment = useMemo(() => {
+    const result = [];
+
+    usersList.forEach(user => {
+      const lastAssignment = lastAssignedMachineByEmail[user.email.toLowerCase()];
+      if (lastAssignment) {
+        result.push({
+          email: user.email,
+          displayName: user.displayName || '',
+          profilePicture: user.profilePicture,
+          machineName: lastAssignment.machineName,
+          assignedAt: lastAssignment.assignedAt,
+          released: lastAssignment.released
+        });
+      }
+    });
+
+    // Apply search filter
+    let filtered = result;
+    if (lastWsSearchFilter) {
+      const lowerFilter = lastWsSearchFilter.toLowerCase();
+      filtered = result.filter(item =>
+        item.email.toLowerCase().includes(lowerFilter) ||
+        item.machineName.toLowerCase().includes(lowerFilter) ||
+        (item.displayName && item.displayName.toLowerCase().includes(lowerFilter))
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (lastWsOrderBy) {
+        case 'email':
+          aValue = a.email.toLowerCase();
+          bValue = b.email.toLowerCase();
+          break;
+        case 'machine':
+          aValue = a.machineName.toLowerCase();
+          bValue = b.machineName.toLowerCase();
+          break;
+        case 'date':
+          aValue = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
+          bValue = b.assignedAt ? new Date(b.assignedAt).getTime() : 0;
+          break;
+        case 'status':
+          aValue = a.released ? 1 : 0;
+          bValue = b.released ? 1 : 0;
+          break;
+        default:
+          aValue = a.email.toLowerCase();
+          bValue = b.email.toLowerCase();
+      }
+
+      if (aValue < bValue) return lastWsOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return lastWsOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [usersList, lastAssignedMachineByEmail, lastWsSearchFilter, lastWsOrderBy, lastWsOrder]);
+
+  // Handle sort for last workstation table
+  const handleLastWsSort = (column) => {
+    if (lastWsOrderBy === column) {
+      setLastWsOrder(lastWsOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setLastWsOrderBy(column);
+      setLastWsOrder('asc');
+    }
+  };
+
   // Filtered and sorted assignments
   const filteredAndSortedAssignments = useMemo(() => {
     let filtered = [...assignmentsList];
@@ -1257,18 +1351,31 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
             }}
           >
             <CardContent sx={{ p: 4 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, gap: 2 }}>
-                <AssignmentIndIcon sx={{ fontSize: 40, color: 'white' }} />
-                <Box>
-                  <Typography variant="h4" sx={{ color: 'white', fontWeight: 600, letterSpacing: '-0.5px' }}>
-                    Create New Assignment
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', mt: 0.5 }}>
-                    Assign users to workstations and Parsec hosts
-                  </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: panelsExpanded.createAssignment ? 4 : 0, gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <AssignmentIndIcon sx={{ fontSize: 40, color: 'white' }} />
+                  <Box>
+                    <Typography variant="h4" sx={{ color: 'white', fontWeight: 600, letterSpacing: '-0.5px' }}>
+                      Create New Assignment
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', mt: 0.5 }}>
+                      Assign users to workstations and Parsec hosts
+                    </Typography>
+                  </Box>
                 </Box>
+                <IconButton
+                  onClick={() => togglePanel('createAssignment')}
+                  sx={{
+                    color: 'white',
+                    bgcolor: 'rgba(255, 255, 255, 0.1)',
+                    '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.2)' }
+                  }}
+                >
+                  {panelsExpanded.createAssignment ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
               </Box>
 
+              <Collapse in={panelsExpanded.createAssignment}>
               <Grid container spacing={3} columns={15}>
                 <Grid size={3}>
                   <Box sx={{
@@ -1923,6 +2030,221 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   </Box>
                 </Fade>
               )}
+              </Collapse>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Last Workstation Assigned Table */}
+        <Grid size={12}>
+          <Card
+            sx={{
+              background: 'linear-gradient(135deg, #fef9e7 0%, #f8e8d4 100%)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+              borderRadius: 3,
+              overflow: 'visible',
+              position: 'relative',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '4px',
+                background: 'linear-gradient(90deg, #f59e0b 0%, #d97706 100%)',
+                borderRadius: '12px 12px 0 0'
+              }
+            }}
+          >
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: panelsExpanded.lastWorkstation ? 3 : 0 }}>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#2d3748', letterSpacing: '-0.5px' }}>
+                    Last Workstation Assigned
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: '#64748b', mt: 0.5 }}>
+                    Users and their most recently assigned workstation
+                  </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Chip
+                    label={`${usersWithLastAssignment.length} Users`}
+                    sx={{
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      color: 'white',
+                      fontWeight: 600,
+                      px: 2
+                    }}
+                  />
+                  <IconButton
+                    onClick={() => togglePanel('lastWorkstation')}
+                    sx={{
+                      color: '#d97706',
+                      bgcolor: 'rgba(245, 158, 11, 0.1)',
+                      '&:hover': { bgcolor: 'rgba(245, 158, 11, 0.2)' }
+                    }}
+                  >
+                    {panelsExpanded.lastWorkstation ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </IconButton>
+                </Box>
+              </Box>
+
+              <Collapse in={panelsExpanded.lastWorkstation}>
+              {/* Search Filter */}
+              <Box sx={{ mb: 3 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search by user or workstation..."
+                  value={lastWsSearchFilter}
+                  onChange={(e) => setLastWsSearchFilter(e.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ color: '#94a3b8' }} />
+                        </InputAdornment>
+                      )
+                    }
+                  }}
+                  sx={{
+                    maxWidth: 400,
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: 'white',
+                      borderRadius: 2
+                    }
+                  }}
+                />
+              </Box>
+
+              {/* Table */}
+              <TableContainer
+                component={Box}
+                sx={{
+                  backgroundColor: 'white',
+                  borderRadius: 2,
+                  border: '1px solid #e2e8f0'
+                }}
+              >
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ backgroundColor: '#f8fafc' }}>
+                      <TableCell sx={{ fontWeight: 600, color: '#475569' }}>
+                        <TableSortLabel
+                          active={lastWsOrderBy === 'email'}
+                          direction={lastWsOrderBy === 'email' ? lastWsOrder : 'asc'}
+                          onClick={() => handleLastWsSort('email')}
+                        >
+                          User
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#475569' }}>
+                        <TableSortLabel
+                          active={lastWsOrderBy === 'machine'}
+                          direction={lastWsOrderBy === 'machine' ? lastWsOrder : 'asc'}
+                          onClick={() => handleLastWsSort('machine')}
+                        >
+                          Last Workstation
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#475569' }}>
+                        <TableSortLabel
+                          active={lastWsOrderBy === 'date'}
+                          direction={lastWsOrderBy === 'date' ? lastWsOrder : 'asc'}
+                          onClick={() => handleLastWsSort('date')}
+                        >
+                          Assigned Date
+                        </TableSortLabel>
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600, color: '#475569' }}>
+                        <TableSortLabel
+                          active={lastWsOrderBy === 'status'}
+                          direction={lastWsOrderBy === 'status' ? lastWsOrder : 'asc'}
+                          onClick={() => handleLastWsSort('status')}
+                        >
+                          Status
+                        </TableSortLabel>
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {usersWithLastAssignment.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
+                          <Typography color="text.secondary">
+                            No users with workstation assignments found
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      usersWithLastAssignment.map((item) => (
+                        <TableRow
+                          key={item.email}
+                          sx={{
+                            '&:hover': { backgroundColor: '#f8fafc' },
+                            backgroundColor: item.released ? 'inherit' : 'rgba(5, 150, 105, 0.05)'
+                          }}
+                        >
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                              <Avatar
+                                src={item.profilePicture}
+                                sx={{ width: 32, height: 32, fontSize: '0.875rem' }}
+                              >
+                                {item.email.charAt(0).toUpperCase()}
+                              </Avatar>
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {item.email.split('@')[0]}
+                                </Typography>
+                                {item.displayName && (
+                                  <Typography variant="caption" sx={{ color: '#64748b' }}>
+                                    {item.displayName}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              icon={<ComputerIcon sx={{ fontSize: 16 }} />}
+                              label={item.machineName}
+                              size="small"
+                              sx={{
+                                backgroundColor: item.released ? '#e2e8f0' : 'rgba(5, 150, 105, 0.1)',
+                                color: item.released ? '#64748b' : '#059669',
+                                fontWeight: 500,
+                                '& .MuiChip-icon': {
+                                  color: item.released ? '#64748b' : '#059669'
+                                }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ color: '#475569' }}>
+                              {item.assignedAt
+                                ? new Date(item.assignedAt).toLocaleDateString()
+                                : 'N/A'}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={item.released ? 'Released' : 'Active'}
+                              size="small"
+                              sx={{
+                                backgroundColor: item.released ? '#fef2f2' : '#dcfce7',
+                                color: item.released ? '#dc2626' : '#16a34a',
+                                fontWeight: 500
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              </Collapse>
             </CardContent>
           </Card>
         </Grid>
@@ -1949,7 +2271,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
             }}
           >
             <CardContent sx={{ p: 4 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: panelsExpanded.globalAssignments ? 3 : 0 }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 600, color: '#2d3748', letterSpacing: '-0.5px' }}>
                     All Global Workstation Assignments
@@ -1996,9 +2318,20 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                       py: 2.5
                     }}
                   />
+                  <IconButton
+                    onClick={() => togglePanel('globalAssignments')}
+                    sx={{
+                      color: '#1e40af',
+                      bgcolor: 'rgba(30, 64, 175, 0.1)',
+                      '&:hover': { bgcolor: 'rgba(30, 64, 175, 0.2)' }
+                    }}
+                  >
+                    {panelsExpanded.globalAssignments ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </IconButton>
                 </Box>
               </Box>
 
+              <Collapse in={panelsExpanded.globalAssignments}>
               {/* Search and View Toggle Controls */}
               <Box sx={{ display: 'flex', gap: 2, mb: 3, alignItems: 'center' }}>
                 <TextField
@@ -2299,38 +2632,20 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                     size="small"
                                     onClick={() => releaseAssignment(assignment.email, assignment.machine_name, assignment.permanent_assignment)}
                                     sx={{
-                                      bgcolor: 'rgba(67, 160, 71, 0.1)',
-                                      color: '#047857',
+                                      bgcolor: 'rgba(211, 47, 47, 0.1)',
+                                      color: '#d32f2f',
                                       transition: 'all 0.3s ease',
                                       '&:hover': {
-                                        bgcolor: '#047857',
+                                        bgcolor: '#d32f2f',
                                         color: 'white',
                                         transform: 'scale(1.1)'
                                       }
                                     }}
                                   >
-                                    <ExitToAppIcon fontSize="small" />
+                                    <DeleteIcon fontSize="small" />
                                   </IconButton>
                                 </Tooltip>
                               )}
-                              <Tooltip title="Delete this assignment" arrow placement="top">
-                                <IconButton
-                                  size="small"
-                                  onClick={() => handleDeleteAssignment(assignment)}
-                                  sx={{
-                                    bgcolor: 'rgba(245, 87, 108, 0.1)',
-                                    color: '#dc2626',
-                                    transition: 'all 0.3s ease',
-                                    '&:hover': {
-                                      bgcolor: '#dc2626',
-                                      color: 'white',
-                                      transform: 'scale(1.1)'
-                                    }
-                                  }}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
                             </Box>
                           );
                         }
@@ -2688,19 +3003,19 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                                         size="small"
                                         onClick={() => releaseAssignment(assignment.email, assignment.machine_name)}
                                         sx={{
-                                          bgcolor: 'rgba(67, 160, 71, 0.1)',
-                                          color: '#047857',
+                                          bgcolor: 'rgba(211, 47, 47, 0.1)',
+                                          color: '#d32f2f',
                                           width: 28,
                                           height: 28,
                                           transition: 'all 0.3s ease',
                                           '&:hover': {
-                                            bgcolor: '#047857',
+                                            bgcolor: '#d32f2f',
                                             color: 'white',
                                             transform: 'scale(1.1)'
                                           }
                                         }}
                                       >
-                                        <ExitToAppIcon sx={{ fontSize: 16 }} />
+                                        <DeleteIcon sx={{ fontSize: 16 }} />
                                       </IconButton>
                                     </Tooltip>
                                   )}
@@ -2721,6 +3036,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   </Grid>
                 </Box>
               )}
+              </Collapse>
             </CardContent>
           </Card>
         </Grid>
@@ -2747,7 +3063,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
             }}
           >
             <CardContent sx={{ p: 4 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: panelsExpanded.parsecAssignments ? 3 : 0 }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 600, color: '#2d3748', letterSpacing: '-0.5px' }}>
                     All Parsec Assignments
@@ -2757,6 +3073,21 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <IconButton
+                    onClick={() => togglePanel('parsecAssignments')}
+                    sx={{
+                      color: '#1e40af',
+                      bgcolor: 'rgba(30, 64, 175, 0.1)',
+                      '&:hover': { bgcolor: 'rgba(30, 64, 175, 0.2)' }
+                    }}
+                  >
+                    {panelsExpanded.parsecAssignments ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </IconButton>
+                </Box>
+              </Box>
+
+              <Collapse in={panelsExpanded.parsecAssignments}>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 3 }}>
                   <TextField
                     placeholder="Search parsec assignments..."
                     variant="outlined"
@@ -2840,7 +3171,6 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   >
                     {queries.parsecReport.isRefetching ? 'Refreshing...' : 'Refresh'}
                   </Button>
-                </Box>
               </Box>
 
               {queries.parsecReport.isLoading ? (
@@ -3158,6 +3488,7 @@ export default function AssignWorkstations({ name = "Assign Workstations" }) {
                   </Grid>
                 </Box>
               )}
+              </Collapse>
             </CardContent>
           </Card>
         </Grid>

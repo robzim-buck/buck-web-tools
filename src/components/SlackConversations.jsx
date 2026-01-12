@@ -5,7 +5,8 @@ import {
   Button, TextField, InputAdornment, Chip, TableSortLabel,
   TablePagination, ToggleButton, ToggleButtonGroup, Card, CardContent,
   Grid, CardActions, Collapse, IconButton, Dialog, DialogTitle, DialogContent,
-  DialogActions, Avatar, List, ListItem, ListItemAvatar, ListItemText, Tabs, Tab
+  DialogActions, Avatar, List, ListItem, ListItemAvatar, ListItemText, Tabs, Tab,
+  Switch, FormControlLabel
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import TableChartIcon from '@mui/icons-material/TableChart';
@@ -38,7 +39,7 @@ export default function SlackConversations(props) {
   // Filter states
   const [showChannels, setShowChannels] = useState(true);
   const [showPrivate, setShowPrivate] = useState(true);
-  const [showArchived, setShowArchived] = useState(false);
+  const [showOnlyActive, setShowOnlyActive] = useState(true);
 
   // Fetch all Slack users for creator lookup
   const { data: usersData = { items: [] } } = useQuery({
@@ -217,10 +218,9 @@ export default function SlackConversations(props) {
       filtered = filtered.filter(conv => !conv.is_private);
     }
 
-    if (!showArchived) {
+    // Filter by active status
+    if (showOnlyActive) {
       filtered = filtered.filter(conv => !conv.is_archived);
-    } else {
-      filtered = filtered.filter(conv => conv.is_archived);
     }
 
     // Apply search filter
@@ -262,7 +262,7 @@ export default function SlackConversations(props) {
     });
 
     return sorted;
-  }, [conversationsData?.items, searchTerm, showChannels, showPrivate, showArchived, order, orderBy]);
+  }, [conversationsData?.items, searchTerm, showChannels, showPrivate, showOnlyActive, order, orderBy]);
 
   // Handle pagination
   const handleChangePage = (event, newPage) => {
@@ -769,7 +769,7 @@ export default function SlackConversations(props) {
           Successfully loaded {conversations.length} Slack conversations.
         </Typography>
 
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 2, alignItems: 'center' }}>
           <Chip
             label={`${conversations.filter(c => c.is_channel && !c.is_private).length} Public Channels`}
             color={showChannels ? 'primary' : 'default'}
@@ -788,23 +788,32 @@ export default function SlackConversations(props) {
             sx={{ cursor: 'pointer' }}
           />
 
-          <Chip
-            label={`${conversations.filter(c => c.is_archived).length} Archived`}
-            color={showArchived ? 'warning' : 'default'}
-            variant={showArchived ? 'filled' : 'outlined'}
-            size="small"
-            onClick={() => setShowArchived(!showArchived)}
-            sx={{ cursor: 'pointer' }}
-          />
-
-          <Chip
-            label={`${conversations.filter(c => !c.is_archived).length} Active`}
-            color={!showArchived ? 'success' : 'default'}
-            variant={!showArchived ? 'filled' : 'outlined'}
-            size="small"
-            onClick={() => setShowArchived(false)}
-            sx={{ cursor: 'pointer' }}
-          />
+          <Box sx={{ borderLeft: 1, borderColor: 'divider', pl: 2, ml: 1 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={showOnlyActive}
+                  onChange={(e) => setShowOnlyActive(e.target.checked)}
+                  color="success"
+                />
+              }
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2">
+                    {showOnlyActive ? 'Active Only' : 'All Groups'}
+                  </Typography>
+                  <Chip
+                    label={showOnlyActive
+                      ? `${conversations.filter(c => !c.is_archived).length} Active`
+                      : `${conversations.length} Total`}
+                    size="small"
+                    color={showOnlyActive ? 'success' : 'default'}
+                    variant="outlined"
+                  />
+                </Box>
+              }
+            />
+          </Box>
         </Box>
       </Paper>
 

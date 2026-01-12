@@ -207,20 +207,26 @@ export default function AdobeGroups(props) {
                 >
                     <Grid container spacing={3}>
                         <Grid item xs={12} md={6}>
-                            <Typography variant="h6" gutterBottom>Groups Summary</Typography>
+                            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                Top 10 Groups by Member Count
+                            </Typography>
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {uniqueTypes.map(type => (
-                                    <Chip 
-                                        key={type}
-                                        label={`${typeCount(sortedData, type)} ${type}`} 
-                                        color="secondary" 
-                                        variant="outlined" 
-                                        size="small"
-                                    />
-                                ))}
+                                {[...sortedData]
+                                    .sort((a, b) => (b.memberCount || 0) - (a.memberCount || 0))
+                                    .slice(0, 10)
+                                    .map((group) => (
+                                        <Chip
+                                            key={group.groupId}
+                                            label={`${group.memberCount || 0} ${group.groupName}`}
+                                            color="info"
+                                            variant="outlined"
+                                            size="small"
+                                        />
+                                    ))
+                                }
                             </Box>
                             <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Chip 
+                                <Chip
                                     label={`${sortedData.length} Total Groups`}
                                     color="primary"
                                     sx={{ fontWeight: 'bold' }}
@@ -339,68 +345,80 @@ export default function AdobeGroups(props) {
                                         }
                                     }}
                                 >
-                                    <CardContent sx={{ py: 2 }}>
-                                        <Grid container alignItems="center" spacing={2}>
-                                            <Grid item xs={12} md={5}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                                    <Box 
-                                                        sx={{ 
-                                                            width: 40, 
-                                                            height: 40, 
-                                                            borderRadius: '50%', 
-                                                            bgcolor: 'primary.light', 
-                                                            display: 'flex', 
-                                                            justifyContent: 'center', 
-                                                            alignItems: 'center',
-                                                            mr: 2,
-                                                            color: 'white',
-                                                            fontWeight: 'bold'
-                                                        }}
-                                                    >
-                                                        {group.groupName.charAt(0).toUpperCase()}
-                                                    </Box>
-                                                    <Typography 
-                                                        variant="body1" 
-                                                        sx={{ 
-                                                            fontWeight: 'medium',
-                                                            overflow: 'hidden',
-                                                            textOverflow: 'ellipsis'
-                                                        }}
-                                                    >
-                                                        {group.groupName}
-                                                    </Typography>
+                                    <CardContent sx={{ py: 1.5 }}>
+                                        <Grid container alignItems="center" spacing={1}>
+                                            {/* Avatar */}
+                                            <Grid size={1} sx={{ display: 'flex', justifyContent: 'center' }}>
+                                                <Box
+                                                    sx={{
+                                                        width: 40,
+                                                        height: 40,
+                                                        borderRadius: '50%',
+                                                        bgcolor: 'primary.light',
+                                                        display: 'flex',
+                                                        justifyContent: 'center',
+                                                        alignItems: 'center',
+                                                        color: 'white',
+                                                        fontWeight: 'bold',
+                                                        flexShrink: 0
+                                                    }}
+                                                >
+                                                    {group.groupName.charAt(0).toUpperCase()}
                                                 </Box>
                                             </Grid>
-                                            
-                                            <Grid item xs={12} md={5}>
-                                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                                    <Chip 
-                                                        label={group.type} 
-                                                        size="small" 
-                                                        variant="outlined"
-                                                        color="secondary"
-                                                    />
-                                                    <Chip 
-                                                        label={`${group.memberCount} members`} 
-                                                        size="small" 
-                                                        variant="outlined"
-                                                        color="info"
-                                                    />
-                                                </Box>
-                                                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+
+                                            {/* Group Name */}
+                                            <Grid size={4}>
+                                                <Typography
+                                                    variant="body1"
+                                                    sx={{
+                                                        fontWeight: 'medium',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap'
+                                                    }}
+                                                >
+                                                    {group.groupName}
+                                                </Typography>
+                                            </Grid>
+
+                                            {/* Type Chip */}
+                                            <Grid size={2} sx={{ display: 'flex', justifyContent: 'center' }}>
+                                                <Chip
+                                                    label={group.type}
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="secondary"
+                                                />
+                                            </Grid>
+
+                                            {/* Member Count */}
+                                            <Grid size={1.5} sx={{ display: 'flex', justifyContent: 'center' }}>
+                                                <Chip
+                                                    label={`${group.memberCount} members`}
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="info"
+                                                />
+                                            </Grid>
+
+                                            {/* Group ID */}
+                                            <Grid size={2}>
+                                                <Typography variant="caption" color="text.secondary">
                                                     ID: {group.groupId}
                                                 </Typography>
                                             </Grid>
                                             
-                                            <Grid item xs={12} md={2} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-                                                <Button 
+                                            {/* Show/Hide Button */}
+                                            <Grid size={1.5} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                                <Button
                                                     aria-label={isExpanded ? 'Hide Details' : 'Show Details'}
                                                     size="small"
                                                     variant="contained"
                                                     color={isExpanded ? "secondary" : "primary"}
                                                     onClick={() => toggleGroupExpand(group.groupId, group.groupName)}
-                                                    sx={{ 
-                                                        minWidth: 100,
+                                                    sx={{
+                                                        minWidth: 80,
                                                         borderRadius: 8
                                                     }}
                                                 >

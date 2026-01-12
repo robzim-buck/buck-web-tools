@@ -10,11 +10,12 @@
  * See the License for the specific language governing permissions and limitations under the License.
  */
 
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { LoginCallback } from '@okta/okta-react';
 import { RequiredAuth } from './SecureRoute';
 import Loading from './Loading';
+import { useAppData } from '../contexts/AppDataProvider';
 
 // Lazy loaded components
 const Home = lazy(() => import('../pages/Home'));
@@ -86,11 +87,12 @@ const SyncSketchProjects = lazy(() => import('./SyncSketchProjects'));
 const LansweeperAssets = lazy(() => import('./LansweeperAssets'));
 const LicenseHistory = lazy(() => import('./LicenseHistory'));
 const LicenseExploration = lazy(() => import('./LicenseExploration'));
+const WorkstationAssignments = lazy(() => import('./WorkstationAssignments'));
 
 
-const allowedEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co"
-const ITEmails = "kevin@buck.co,harry.youngjones@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,mike.villasana@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co"
-const PTOEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,nick@buck.co,ncarmen@buck.co,barrett.brown@buck.co,gautam.sinha@buck.co"
+const allowedEmails = "kevin@buck.co,rob.zimmelman@residence.co,john.kleber@residence.co,gautam.sinha@residence.co"
+const ITEmails = "kevin@buck.co,harry.youngjones@buck.co,rob.zimmelman@residence.co,john.kleber@residence.co,mike.villasana@buck.co,gautam.sinha@residence.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@residence.co,sasha.nater@buck.co"
+const PTOEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@residence.co,nick@buck.co,ncarmen@buck.co,barrett.brown@buck.co,gautam.sinha@buck.co"
 
 
 // Loading component for Suspense fallback
@@ -102,6 +104,31 @@ const SuspenseWrapper = ({ component: Component, ...props }) => (
     <Component {...props} />
   </Suspense>
 );
+
+// Wrapper component for WorkstationAssignments that fetches static data at app load
+const WorkstationAssignmentsWrapper = ({ name }) => {
+  const { queries, requestData } = useAppData();
+
+  // Request static data immediately on mount - this data doesn't change often
+  useEffect(() => {
+    requestData([
+      'oktaUsers',
+      'saltMachineInfo',
+      'ldapRawMachineInfo'
+    ]);
+  }, [requestData]);
+
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <WorkstationAssignments
+        name={name}
+        oktaUsersQuery={queries.oktaUsers}
+        saltMachineInfoQuery={queries.saltMachineInfo}
+        ldapRawMachineInfoQuery={queries.ldapRawMachineInfo}
+      />
+    </Suspense>
+  );
+};
 
 const AppRoutes = () => {
   return (
@@ -578,6 +605,12 @@ const AppRoutes = () => {
           <Suspense fallback={<LoadingFallback />}>
             <LansweeperAssets name="Lansweeper Assets" />
           </Suspense>
+        }/>
+      </Route>
+
+      <Route path="/workstationassignments" element={<RequiredAuth allowedEmail={ITEmails}/>}>
+        <Route path="" element={
+          <WorkstationAssignmentsWrapper name="Workstation Assignments (WIP - Testing)" />
         }/>
       </Route>
     </Routes>

@@ -337,8 +337,8 @@ export default function ActiveSelfServLicenses(props) {
 
     
   function releaseLicense(event, useremail, license) {
-    if ( ! useremail.includes('buck.co') && ! useremail.includes('anyways.co') && ! useremail.includes('giantant.ca') ) {
-      alert(`Only works for Buck, GiantAnt and Anyways Users, not for ${useremail}`)
+    if ( ! useremail.includes('buck.co') && ! useremail.includes('anyways.co') && ! useremail.includes('giantant.ca') && ! useremail.includes('residence.co') ) {
+      alert(`Only works for Buck, Residence, GiantAnt and Anyways Users, not for ${useremail}`)
       return
     }
     setOperation('Returning');

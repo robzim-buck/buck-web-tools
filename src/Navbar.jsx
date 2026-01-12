@@ -80,8 +80,8 @@ import {
 } from '@mui/icons-material';
 
 // Email lists from Routes.jsx
-const restrictedEmails = "kevin@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co";
-const ITEmails = "kevin@buck.co,andrew.burnett@buck.co,harry.youngjones@buck.co,mj.hilomen@buck.co,daniel.hernandez@buck.co,rob.zimmelman@buck.co,john.kleber@buck.co,gautam.sinha@buck.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@buck.co,sasha.nater@buck.co,mike.villasana@buck.co";
+const restrictedEmails = "kevin@buck.co,john.kleber@residence.co,gautam.sinha@residence.co,rob.zimmelman@residence.co";
+const ITEmails = "kevin@buck.co,andrew.burnett@buck.co,harry.youngjones@buck.co,mj.hilomen@buck.co,daniel.hernandez@buck.co,rob.zimmelman@residence.co,john.kleber@residence.co,gautam.sinha@residence.co,miranda.summar@buck.co,rizzo.islam@buck.co,carlo.suozzo@buck.co,jonathan.brazier@residence.co,sasha.nater@buck.co,mike.villasana@buck.co";
 
 const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
   const { authState, oktaAuth } = useOktaAuth();
@@ -548,6 +548,14 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                     <ListItemButton component={Link} to="/assignworkstations" id="dashboard-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                       <ListItemIcon><DashboardIcon fontSize="small" /></ListItemIcon>
                       <ListItemText primary="Assignment Dashboard" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                    </ListItemButton>
+                  </Tooltip>
+                )}
+                {hasAccess(ITEmails) && (
+                  <Tooltip title="Workstation Assignment Dashboard - by site" placement="right">
+                    <ListItemButton component={Link} to="/workstationassignments" id="workstation-assignments-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                      <ListItemIcon><ComputerIcon fontSize="small" /></ListItemIcon>
+                      <ListItemText primary="Workstation Assignments" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                     </ListItemButton>
                   </Tooltip>
                 )}
