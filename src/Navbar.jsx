@@ -287,6 +287,10 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                   <ListItemIcon><AssignmentIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Docusign Users" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
+                <ListItemButton component={Link} to="/conferenceroomcalendars" id="conference-room-calendars-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><CalendarTodayIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Conference Room Calendars" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
                 <ListItemButton component={Link} to="/googlecalendars" id="google-calendars-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><CalendarTodayIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Google Calendars" slotProps={{ primary: { fontSize: '0.875rem' } }} />

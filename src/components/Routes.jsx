@@ -60,6 +60,7 @@ const ParsecUsers = lazy(() => import('./ParsecUsers'));
 const ParsecHosts = lazy(() => import('./ParsecHosts'));
 const GoogleUsers = lazy(() => import('./GoogleUsers'));
 const GoogleCalendars = lazy(() => import('./GoogleCalendars'));
+const ConferenceRoomCalendars = lazy(() => import('./ConferenceRoomCalendars'));
 const ZoomUsers = lazy(() => import('./ZoomUsers'));
 const DocusignUsers = lazy(() => import('./DocusignUsers'));
 const SlackUsers = lazy(() => import('./SlackUsers'));
@@ -329,6 +330,14 @@ const AppRoutes = () => {
       <Route path="/googlecalendars" element={<RequiredAuth/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}><GoogleCalendars /></Suspense>
+        }/>
+      </Route>
+
+      <Route path="/conferenceroomcalendars" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <ConferenceRoomCalendars name="Conference Room Calendars" />
+          </Suspense>
         }/>
       </Route>
 

@@ -63,7 +63,7 @@ export default function OnboardNewUser() {
     jobTitle: '',
     status: 'STAGED',
     department: '',
-    subsidiary: '',
+    subsidiary: 'buck.co',
     location: ''
   });
   const [errors, setErrors] = useState({});
@@ -181,6 +181,49 @@ export default function OnboardNewUser() {
     });
 
     return emailMap;
+  }, [oktaUsersQuery.data]);
+
+  // Extract unique email domains from Okta users for subsidiary dropdown
+  const emailDomains = useMemo(() => {
+    if (!oktaUsersQuery.data || !Array.isArray(oktaUsersQuery.data)) {
+      return [];
+    }
+
+    const domainSet = new Set();
+    oktaUsersQuery.data.forEach(user => {
+      if (user.profile?.email) {
+        const domain = user.profile.email.split('@')[1];
+        if (domain) {
+          domainSet.add(domain.toLowerCase());
+        }
+      }
+    });
+
+    const domains = Array.from(domainSet).sort();
+    console.log('Extracted email domains from Okta:', domains);
+
+    return domains;
+  }, [oktaUsersQuery.data]);
+
+  // Extract unique locations from Okta users for location dropdown
+  const oktaLocations = useMemo(() => {
+    if (!oktaUsersQuery.data || !Array.isArray(oktaUsersQuery.data)) {
+      return [];
+    }
+
+    const locationSet = new Set();
+    oktaUsersQuery.data.forEach(user => {
+      // Try different location fields that Okta might have
+      const location = user.profile?.city || user.profile?.location || user.profile?.primaryLocation;
+      if (location && location.trim()) {
+        locationSet.add(location.trim());
+      }
+    });
+
+    const locations = Array.from(locationSet).sort();
+    console.log('Extracted locations from Okta:', locations);
+
+    return locations;
   }, [oktaUsersQuery.data]);
 
   // Get user initials for avatar fallback
@@ -341,7 +384,7 @@ export default function OnboardNewUser() {
           jobTitle: '',
           status: 'STAGED',
           department: '',
-          subsidiary: '',
+          subsidiary: 'buck.co',
           location: ''
         });
         setErrors({});
@@ -375,17 +418,10 @@ export default function OnboardNewUser() {
     await checkUserExists(login);
   }, 500);
 
-  // Helper function to get email domain based on subsidiary
+  // Helper function to get email domain - subsidiary now contains the domain directly
   const getEmailDomain = (subsidiary) => {
-    if (!subsidiary) return 'buck.co';
-
-    const sub = subsidiary.toLowerCase();
-    if (sub.includes('buck')) return 'buck.co';
-    if (sub.includes('vtpro')) return 'vtprodesign.com';
-    if (sub.includes('wild')) return 'wild.co';
-    if (sub.includes('anyways')) return 'anyways.co';
-
-    return 'buck.co'; // default
+    if (!subsidiary) return emailDomains[0] || 'buck.co';
+    return subsidiary; // subsidiary is now the domain itself
   };
 
   const handleChange = (e) => {
@@ -491,13 +527,13 @@ export default function OnboardNewUser() {
       newErrors.login = 'Login is required';
     }
 
-    if (!formData.mobilePhone.trim()) {
-      newErrors.mobilePhone = 'Mobile phone is required';
-    } else if (!/^[0-9]{10}$/.test(formData.mobilePhone.replace(/[^0-9]/g, ''))) {
+    if (formData.mobilePhone.trim() && !/^[0-9]{10}$/.test(formData.mobilePhone.replace(/[^0-9]/g, ''))) {
       newErrors.mobilePhone = 'Mobile phone must contain 10 digits';
     }
 
-    if (formData.personalEmail && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(formData.personalEmail)) {
+    if (!formData.personalEmail.trim()) {
+      newErrors.personalEmail = 'Personal email is required';
+    } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(formData.personalEmail)) {
       newErrors.personalEmail = 'Invalid personal email address';
     }
 
@@ -581,12 +617,12 @@ export default function OnboardNewUser() {
         break;
 
       case 1: // Contact Details
-        if (!formData.mobilePhone.trim()) {
-          newErrors.mobilePhone = 'Mobile phone is required';
-        } else if (!/^[0-9]{10}$/.test(formData.mobilePhone.replace(/[^0-9]/g, ''))) {
+        if (formData.mobilePhone.trim() && !/^[0-9]{10}$/.test(formData.mobilePhone.replace(/[^0-9]/g, ''))) {
           newErrors.mobilePhone = 'Mobile phone must contain 10 digits';
         }
-        if (formData.personalEmail && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(formData.personalEmail)) {
+        if (!formData.personalEmail.trim()) {
+          newErrors.personalEmail = 'Personal email is required';
+        } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,4}$/i.test(formData.personalEmail)) {
           newErrors.personalEmail = 'Invalid personal email address';
         }
         break;
@@ -818,18 +854,18 @@ export default function OnboardNewUser() {
                         name="email"
                         type="email"
                         value={formData.email}
-                        onChange={handleChange}
                         error={!!errors.email || emailStatus === 'invalid'}
                         helperText={
                           emailStatus === 'invalid'
                             ? "This user already exists. Please use a different name."
                             : emailStatus === 'valid'
                               ? "Email is available!"
-                              : (errors.email || "Email will be auto-generated from first.last@buck.co")
+                              : (errors.email || "Auto-generated from name and selected domain")
                         }
                         required
                         slotProps={{
                           input: {
+                            readOnly: true,
                             startAdornment: (
                               <InputAdornment position="start">
                                 <EmailIcon color="action" />
@@ -841,6 +877,7 @@ export default function OnboardNewUser() {
                               <CheckCircleIcon color="success" />
                             ) : null,
                             sx: {
+                              backgroundColor: 'rgba(0, 0, 0, 0.04)',
                               ...(emailStatus === 'valid' && {
                                 backgroundColor: 'rgba(46, 125, 50, 0.08)',
                                 borderColor: 'success.main'
@@ -868,18 +905,19 @@ export default function OnboardNewUser() {
                       label="Login (Username)"
                       name="login"
                       value={formData.login}
-                      onChange={handleChange}
                       error={!!errors.login}
-                      helperText={errors.login || "Username will be auto-generated from first.last"}
+                      helperText={errors.login || "Auto-generated from first.last"}
                       required
                       slotProps={{
                         input: {
+                          readOnly: true,
                           startAdornment: (
                             <InputAdornment position="start">
                               <PersonAddIcon color="action" />
                             </InputAdornment>
                           ),
                           sx: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.04)',
                             ...(emailStatus === 'valid' && {
                               backgroundColor: 'rgba(46, 125, 50, 0.08)'
                             })
@@ -898,17 +936,17 @@ export default function OnboardNewUser() {
                   </Grid>
                   <Grid item size={12}>
                     <FormControl fullWidth required error={!!errors.subsidiary}>
-                      <InputLabel id="subsidiary-label">Subsidiary</InputLabel>
+                      <InputLabel id="subsidiary-label">Email Domain</InputLabel>
                       <Select
                         labelId="subsidiary-label"
                         name="subsidiary"
                         value={formData.subsidiary}
-                        label="Subsidiary"
+                        label="Email Domain"
                         onChange={handleChange}
-                        disabled={subsidiariesQuery.isLoading}
+                        disabled={oktaUsersQuery.isLoading}
                         startAdornment={
                           <InputAdornment position="start">
-                            <BusinessIcon color="action" />
+                            <EmailIcon color="action" />
                           </InputAdornment>
                         }
                         MenuProps={{
@@ -920,23 +958,23 @@ export default function OnboardNewUser() {
                           }
                         }}
                       >
-                        {subsidiariesQuery.isLoading ? (
+                        {oktaUsersQuery.isLoading ? (
                           <MenuItem disabled>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <CircularProgress size={16} />
-                              Loading subsidiaries...
+                              Loading domains...
                             </Box>
                           </MenuItem>
-                        ) : subsidiariesQuery.data && Array.isArray(subsidiariesQuery.data) ? (
-                          subsidiariesQuery.data.map((sub) => (
-                            <MenuItem key={sub.id || sub.name} value={sub.name || sub.id}>
-                              {sub.name || sub.id}
+                        ) : emailDomains.length > 0 ? (
+                          emailDomains.map((domain) => (
+                            <MenuItem key={domain} value={domain}>
+                              @{domain}
                             </MenuItem>
                           ))
                         ) : null}
                       </Select>
                       <FormHelperText>
-                        {errors.subsidiary || 'Select subsidiary to determine email domain'}
+                        {errors.subsidiary || 'Select email domain for this user'}
                       </FormHelperText>
                     </FormControl>
                   </Grid>
@@ -971,13 +1009,12 @@ export default function OnboardNewUser() {
                   <Grid item size={12}>
                     <TextField
                       fullWidth
-                      label="Mobile Phone"
+                      label="Mobile Phone (Optional)"
                       name="mobilePhone"
                       value={formData.mobilePhone}
                       onChange={handleChange}
                       error={!!errors.mobilePhone}
-                      helperText={errors.mobilePhone || "Format: 10 digits (e.g., 1234567890)"}
-                      required
+                      helperText={errors.mobilePhone || "Optional: Format 10 digits (e.g., 1234567890)"}
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -1000,13 +1037,14 @@ export default function OnboardNewUser() {
                   <Grid item size={12}>
                     <TextField
                       fullWidth
-                      label="Personal Email (Optional)"
+                      label="Personal Email"
                       name="personalEmail"
                       type="email"
                       value={formData.personalEmail}
                       onChange={handleChange}
                       error={!!errors.personalEmail}
-                      helperText={errors.personalEmail || "Optional: Personal email address for the user"}
+                      helperText={errors.personalEmail || "Personal email address for the user"}
+                      required
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -1184,17 +1222,17 @@ export default function OnboardNewUser() {
                   </Grid>
                   <Grid item size={12}>
                     <FormControl fullWidth required error={!!errors.subsidiary}>
-                      <InputLabel id="subsidiary-label">Subsidiary</InputLabel>
+                      <InputLabel id="subsidiary-label-org">Email Domain</InputLabel>
                       <Select
-                        labelId="subsidiary-label"
+                        labelId="subsidiary-label-org"
                         name="subsidiary"
                         value={formData.subsidiary}
-                        label="Subsidiary"
+                        label="Email Domain"
                         onChange={handleChange}
-                        disabled={subsidiariesQuery.isLoading}
+                        disabled={oktaUsersQuery.isLoading}
                         startAdornment={
                           <InputAdornment position="start">
-                            <BusinessIcon color="action" />
+                            <EmailIcon color="action" />
                           </InputAdornment>
                         }
                         MenuProps={{
@@ -1206,23 +1244,23 @@ export default function OnboardNewUser() {
                           }
                         }}
                       >
-                        {subsidiariesQuery.isLoading ? (
+                        {oktaUsersQuery.isLoading ? (
                           <MenuItem disabled>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <CircularProgress size={16} />
-                              Loading subsidiaries...
+                              Loading domains...
                             </Box>
                           </MenuItem>
-                        ) : subsidiariesQuery.data && Array.isArray(subsidiariesQuery.data) ? (
-                          subsidiariesQuery.data.map((sub) => (
-                            <MenuItem key={sub.id || sub.name} value={sub.name || sub.id}>
-                              {sub.name || sub.id}
+                        ) : emailDomains.length > 0 ? (
+                          emailDomains.map((domain) => (
+                            <MenuItem key={domain} value={domain}>
+                              @{domain}
                             </MenuItem>
                           ))
                         ) : null}
                       </Select>
                       <FormHelperText>
-                        {errors.subsidiary || 'Select the user\'s subsidiary'}
+                        {errors.subsidiary || 'Select email domain for this user'}
                       </FormHelperText>
                     </FormControl>
                   </Grid>
@@ -1235,7 +1273,7 @@ export default function OnboardNewUser() {
                         value={formData.location}
                         label="Location"
                         onChange={handleChange}
-                        disabled={locationsQuery.isLoading}
+                        disabled={oktaUsersQuery.isLoading}
                         startAdornment={
                           <InputAdornment position="start">
                             <LocationOnIcon color="action" />
@@ -1250,17 +1288,17 @@ export default function OnboardNewUser() {
                           }
                         }}
                       >
-                        {locationsQuery.isLoading ? (
+                        {oktaUsersQuery.isLoading ? (
                           <MenuItem disabled>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <CircularProgress size={16} />
                               Loading locations...
                             </Box>
                           </MenuItem>
-                        ) : locationsQuery.data && Array.isArray(locationsQuery.data) ? (
-                          locationsQuery.data.map((loc) => (
-                            <MenuItem key={loc.id || loc.name} value={loc.name || loc.id}>
-                              {loc.name || loc.id}
+                        ) : oktaLocations.length > 0 ? (
+                          oktaLocations.map((location) => (
+                            <MenuItem key={location} value={location}>
+                              {location}
                             </MenuItem>
                           ))
                         ) : null}
