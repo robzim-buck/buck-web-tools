@@ -647,6 +647,10 @@ const Navbar = ({ sidebarWidth, setSidebarWidth }) => {
                   <ListItemIcon><FlagIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Hammerspace Objectives" slotProps={{ primary: { fontSize: '0.875rem' } }} />
                 </ListItemButton>
+                <ListItemButton component={Link} to="/hammerspaceobjectiveschecker" id="hammerspace-objectives-checker-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
+                  <ListItemIcon><HealthAndSafetyIcon fontSize="small" /></ListItemIcon>
+                  <ListItemText primary="Hammerspace Objectives Checker" slotProps={{ primary: { fontSize: '0.875rem' } }} />
+                </ListItemButton>
                 <ListItemButton component={Link} to="/hammerspaceshares" id="hammerspace-shares-button" sx={{ pl: 4, py: 0.5, minHeight: 32 }}>
                   <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
                   <ListItemText primary="Hammerspace Shares" slotProps={{ primary: { fontSize: '0.875rem' } }} />

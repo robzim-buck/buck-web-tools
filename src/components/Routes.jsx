@@ -37,6 +37,7 @@ const HammerspaceShares = lazy(() => import('./HammerspaceShares'));
 const HammerSpaceNodes = lazy(() => import('./HammerSpaceNodes'));
 const HammerSpaceGateways = lazy(() => import('./HammerSpaceGateways'));
 const HammerspaceObjectives = lazy(() => import('./HammerspaceObjectives'));
+const HammerspaceObjectivesChecker = lazy(() => import('./HammerspaceObjectivesChecker'));
 const HammerspaceSites = lazy(() => import('./HammerspaceSites'));
 const HammerSpaceTasks = lazy(() => import('./HammerSpaceTasks'));
 const HammerSpaceSystemHealth = lazy(() => import('./HammerSpaceSystemHealth'));
@@ -253,9 +254,16 @@ const AppRoutes = () => {
         }/>
       </Route>
 
-      <Route path="/hammerspaceobjectives" element={<RequiredAuth/>}>
+      <Route path="/hammerspaceobjectives" element={<RequiredAuth allowedEmail={ITEmails}/>}>
         <Route path="" element={
           <Suspense fallback={<LoadingFallback />}><HammerspaceObjectives /></Suspense>
+        }/>
+      </Route>
+      <Route path="/hammerspaceobjectiveschecker" element={<RequiredAuth/>}>
+        <Route path="" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <HammerspaceObjectivesChecker name="Hammerspace Objectives Checker" />
+          </Suspense>
         }/>
       </Route>
       <Route path="/hammerspacesites" element={<RequiredAuth/>}>

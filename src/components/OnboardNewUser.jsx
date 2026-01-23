@@ -465,7 +465,7 @@ export default function OnboardNewUser() {
 
         // Construct email and login
         const email = `${firstNameLower}.${lastNameLower}@${emailDomain}`;
-        const login = `${firstNameLower}.${lastNameLower}`;
+        const login = `${firstNameLower}.${lastNameLower}@${emailDomain}`;
 
         console.log('Setting email and login:', { email, login, emailDomain });
 
@@ -539,7 +539,7 @@ export default function OnboardNewUser() {
 
     if (!formData.department.trim()) {
       newErrors.department = 'Department is required';
-    }
+    }n
 
     if (!formData.subsidiary.trim()) {
       newErrors.subsidiary = 'Subsidiary is required';
